@@ -101,7 +101,6 @@ evalSession('_profileQueryIntentFromLocation');
 evalSession('_consumeProfileQueryParamFromLocation');
 evalSession('_consumeComposerPrefillParamsFromLocation');
 evalSession('_sessionUrlForSid');
-evalBoot('_profileQueryBlocksSavedLocalRestore');
 const intent = _profileQueryIntentFromLocation();
 global.S = { activeProfile: 'default', activeProfileIsDefault: true };
 const switched = [];
@@ -113,7 +112,6 @@ global.switchToProfile = async (name) => {
   return true;
 };
 (async () => {
-  const savedLocalBefore = localStorage.getItem('hermes-webui-session');
   const profileSwitchProfileBefore = S.activeProfile || 'default';
   const profileSwitchIsDefaultBefore = !!S.activeProfileIsDefault;
   let profileSwitchCompleted = false;
@@ -135,25 +133,19 @@ global.switchToProfile = async (name) => {
       console.warn('[boot] profile query switch failed', e);
     }
   }
-  const blocksSavedLocal = _profileQueryBlocksSavedLocalRestore(intent, null);
-  if (blocksSavedLocal && profileSwitchCompleted && profileSwitchChangedProfile && localStorage.getItem('hermes-webui-session') === savedLocalBefore) localStorage.removeItem('hermes-webui-session');
-  const savedLocalAfterSuppress = localStorage.getItem('hermes-webui-session');
-  const savedLocalAfterReload = localStorage.getItem('hermes-webui-session');
-  const keepsExplicitSession = _profileQueryBlocksSavedLocalRestore(intent, 'session-123');
   const afterProfile = window.location.pathname + window.location.search + window.location.hash;
   const promoted = _sessionUrlForSid('abc 123');
   _consumeComposerPrefillParamsFromLocation();
   const afterPrefill = window.location.pathname + window.location.search + window.location.hash;
   const profilePos = bootSrc.indexOf("const profileIntent=(typeof _profileQueryIntentFromLocation==='function')?_profileQueryIntentFromLocation():null;");
   const renderPos = bootSrc.indexOf("await renderSessionList();", profilePos);
-  const savedPos = bootSrc.indexOf("const saved=urlSession||savedLocal;", profilePos);
+  const savedPos = bootSrc.indexOf("const saved=urlSession;", profilePos);
   const loadPos = bootSrc.indexOf("await loadSession(saved, {preserveActiveInput:true});", profilePos);
   const consumePos = bootSrc.indexOf("if(typeof _consumeProfileQueryParamFromLocation==='function') _consumeProfileQueryParamFromLocation();", profilePos);
   const completedPos = bootSrc.indexOf("_profileSwitchCompleted=await switchToProfile(profileIntent.name)===true;", profilePos);
   const changedPos = bootSrc.indexOf("_profileSwitchChangedProfile=", completedPos);
-  const cleanupGuardPos = bootSrc.indexOf("if(_profileQueryBlocksSavedLocal&&_profileSwitchCompleted&&_profileSwitchChangedProfile){", profilePos);
   const initialReasoningFetchPos = bootSrc.indexOf("if(typeof fetchReasoningChip==='function'&&(!_profileSwitchCompleted||!_profileSwitchChangedProfile)) fetchReasoningChip();", profilePos);
-  console.log(JSON.stringify({ intent, switched, promoted, afterProfile, afterPrefill, historyCalls: window.history.calls, profilePos, renderPos, savedPos, loadPos, consumePos, completedPos, changedPos, cleanupGuardPos, initialReasoningFetchPos, savedLocalBefore, savedLocalAfterSuppress, savedLocalAfterReload, blocksSavedLocal, keepsExplicitSession }));
+  console.log(JSON.stringify({ intent, switched, promoted, afterProfile, afterPrefill, historyCalls: window.history.calls, profilePos, renderPos, savedPos, loadPos, consumePos, completedPos, changedPos, initialReasoningFetchPos }));
 })().catch(err => {
   console.error(err);
   process.exit(1);
@@ -174,13 +166,7 @@ global.switchToProfile = async (name) => {
     assert payload["consumePos"] > payload["profilePos"]
     assert payload["completedPos"] > payload["profilePos"]
     assert payload["changedPos"] > payload["completedPos"]
-    assert payload["cleanupGuardPos"] > payload["consumePos"]
     assert payload["initialReasoningFetchPos"] > payload["completedPos"]
-    assert payload["savedLocalBefore"] == "saved-local"
-    assert payload["savedLocalAfterSuppress"] == "fresh-local"
-    assert payload["savedLocalAfterReload"] == "fresh-local"
-    assert payload["blocksSavedLocal"] is True
-    assert payload["keepsExplicitSession"] is False
 
 
 def test_noop_profile_query_switch_keeps_saved_local_state():
@@ -220,7 +206,6 @@ evalSession('_profileQueryIntentFromLocation');
 evalSession('_consumeProfileQueryParamFromLocation');
 evalSession('_consumeComposerPrefillParamsFromLocation');
 evalSession('_sessionUrlForSid');
-evalBoot('_profileQueryBlocksSavedLocalRestore');
 const intent = _profileQueryIntentFromLocation();
 global.switchToProfile = async () => true;
 (async () => {
@@ -246,17 +231,12 @@ global.switchToProfile = async () => true;
       console.warn('[boot] profile query switch failed', e);
     }
   }
-  const blocksSavedLocal = _profileQueryBlocksSavedLocalRestore(intent, null);
-  if (blocksSavedLocal && profileSwitchCompleted && profileSwitchChangedProfile && localStorage.getItem('hermes-webui-session') === savedLocalBefore) localStorage.removeItem('hermes-webui-session');
-  const cleanupGuardPos = bootSrc.indexOf("if(_profileQueryBlocksSavedLocal&&_profileSwitchCompleted&&_profileSwitchChangedProfile){", bootSrc.indexOf("const profileIntent=(typeof _profileQueryIntentFromLocation==='function')?_profileQueryIntentFromLocation():null;"));
   console.log(JSON.stringify({
     intent,
-    blocksSavedLocal,
     profileSwitchCompleted,
     profileSwitchChangedProfile,
     savedLocalBefore,
     savedLocalAfter: localStorage.getItem('hermes-webui-session'),
-    cleanupGuardPos,
   }));
 })().catch(err => {
   console.error(err);
@@ -265,12 +245,10 @@ global.switchToProfile = async () => true;
 """
     payload = json.loads(_run_node(source))
     assert payload["intent"] == {"hasParam": True, "valid": True, "name": "default"}
-    assert payload["blocksSavedLocal"] is True
     assert payload["profileSwitchCompleted"] is True
     assert payload["profileSwitchChangedProfile"] is False
     assert payload["savedLocalBefore"] == "saved-local"
     assert payload["savedLocalAfter"] == "saved-local"
-    assert payload["cleanupGuardPos"] >= 0
 
 
 def test_failed_profile_query_switch_keeps_saved_local_state():
@@ -311,11 +289,9 @@ evalSession('_profileQueryIntentFromLocation');
 evalSession('_consumeProfileQueryParamFromLocation');
 evalSession('_consumeComposerPrefillParamsFromLocation');
 evalSession('_sessionUrlForSid');
-evalBoot('_profileQueryBlocksSavedLocalRestore');
 const intent = _profileQueryIntentFromLocation();
 global.switchToProfile = async () => { throw new Error('boom'); };
 (async () => {
-  const savedLocalBefore = localStorage.getItem('hermes-webui-session');
   let profileSwitchCompleted = false;
   if (intent && intent.hasParam) {
     try {
@@ -332,14 +308,11 @@ global.switchToProfile = async () => { throw new Error('boom'); };
       console.warn('[boot] profile query switch failed', e);
     }
   }
-  const blocksSavedLocal = _profileQueryBlocksSavedLocalRestore(intent, null);
-  if (blocksSavedLocal && profileSwitchCompleted && localStorage.getItem('hermes-webui-session') === savedLocalBefore) localStorage.removeItem('hermes-webui-session');
   const afterBoot = window.location.pathname + window.location.search + window.location.hash;
   _consumeComposerPrefillParamsFromLocation();
   const afterPrefill = window.location.pathname + window.location.search + window.location.hash;
   const promoted = _sessionUrlForSid('abc 123');
   console.log(JSON.stringify({
-    blocksSavedLocal,
     profileSwitchCompleted,
     savedLocalAfter: localStorage.getItem('hermes-webui-session'),
     afterBoot,
@@ -353,7 +326,6 @@ global.switchToProfile = async () => { throw new Error('boom'); };
 });
 """
     payload = json.loads(_run_node(source))
-    assert payload["blocksSavedLocal"] is True
     assert payload["profileSwitchCompleted"] is False
     assert payload["savedLocalAfter"] == "saved-local"
     assert payload["afterBoot"] == "/app/?profile=vops&q=hello&keep=1#frag"
@@ -398,11 +370,9 @@ global.localStorage = {
 };
 evalSession('_profileQueryIntentFromLocation');
 evalSession('_consumeProfileQueryParamFromLocation');
-evalBoot('_profileQueryBlocksSavedLocalRestore');
 const intent = _profileQueryIntentFromLocation();
 global.switchToProfile = async () => false;
 (async () => {
-  const savedLocalBefore = localStorage.getItem('hermes-webui-session');
   let profileSwitchCompleted = false;
   if (intent && intent.hasParam) {
     try {
@@ -419,10 +389,7 @@ global.switchToProfile = async () => false;
       console.warn('[boot] profile query switch failed', e);
     }
   }
-  const blocksSavedLocal = _profileQueryBlocksSavedLocalRestore(intent, null);
-  if (blocksSavedLocal && profileSwitchCompleted && localStorage.getItem('hermes-webui-session') === savedLocalBefore) localStorage.removeItem('hermes-webui-session');
   console.log(JSON.stringify({
-    blocksSavedLocal,
     profileSwitchCompleted,
     savedLocalAfter: localStorage.getItem('hermes-webui-session'),
     url: window.location.pathname + window.location.search + window.location.hash,
@@ -435,7 +402,6 @@ global.switchToProfile = async () => false;
 });
 """
     payload = json.loads(_run_node(source))
-    assert payload["blocksSavedLocal"] is True
     assert payload["profileSwitchCompleted"] is False
     assert payload["savedLocalAfter"] == "saved-local"
     assert payload["url"] == "/app/?profile=vops&q=hello&keep=1#frag"
@@ -541,46 +507,11 @@ console.log(JSON.stringify({
     assert payload["historyCalls"] == [{"state": None, "title": "", "url": "/app/?keep=1#frag"}]
 
 
-def test_profile_query_blocks_only_implicit_saved_local_restore():
-    source = _node_prelude() + """
-evalBoot('_profileQueryBlocksSavedLocalRestore');
-global.localStorage = {
-  store: { 'hermes-webui-session': 'saved-local' },
-  getItem(key) {
-    return Object.prototype.hasOwnProperty.call(this.store, key) ? this.store[key] : null;
-  },
-  setItem(key, value) {
-    this.store[key] = String(value);
-  },
-  removeItem(key) {
-    delete this.store[key];
-  }
-};
-const validProfile = { hasParam: true, valid: true };
-const invalidProfile = { hasParam: true, valid: false };
-const blocksImplicit = _profileQueryBlocksSavedLocalRestore(validProfile, null);
-if (blocksImplicit) localStorage.removeItem('hermes-webui-session');
-const implicitAfter = localStorage.getItem('hermes-webui-session');
-localStorage.setItem('hermes-webui-session', 'saved-local');
-const allowsExplicit = _profileQueryBlocksSavedLocalRestore(validProfile, 'session-123');
-if (allowsExplicit) localStorage.removeItem('hermes-webui-session');
-const explicitAfter = localStorage.getItem('hermes-webui-session');
-console.log(JSON.stringify({
-  blocksImplicit,
-  allowsExplicit,
-  ignoresInvalid: _profileQueryBlocksSavedLocalRestore(invalidProfile, null),
-  implicitAfter,
-  explicitAfter,
-}));
-"""
-    payload = json.loads(_run_node(source))
-    assert payload == {
-        "blocksImplicit": True,
-        "allowsExplicit": False,
-        "ignoresInvalid": False,
-        "implicitAfter": None,
-        "explicitAfter": "saved-local",
-    }
+def test_profile_query_no_longer_suppresses_saved_local_restore():
+    """Root boot never restores from localStorage, so the old suppression
+    helper and its cleanup guard are obsolete and must not exist."""
+    assert "_profileQueryBlocksSavedLocalRestore" not in BOOT_JS
+    assert "if(_profileQueryBlocksSavedLocal&&_profileSwitchCompleted&&_profileSwitchChangedProfile){" not in BOOT_JS
 
 
 def test_profile_transition_reasoning_refresh_hides_stale_chip_until_destination_resolves():

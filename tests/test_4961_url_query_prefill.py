@@ -134,35 +134,30 @@ console.log(JSON.stringify({ cleaned, promoted }));
     assert payload["promoted"] == "/app/session/abc%20123?keep=1#frag"
 
 
-def test_root_prefill_keeps_saved_local_sidebar_only():
+def test_root_prefill_lands_on_fresh_composer_without_saved_session_restore():
     source = _node_prelude() + """
 evalBoot('_prefillHasDraftText');
-evalBoot('_rootPrefillNeedsFreshComposer');
 const result = {
-  savedLocalWins: _rootPrefillNeedsFreshComposer(null, 'saved-local', { hasText: true }),
-  explicitSessionWins: _rootPrefillNeedsFreshComposer('url-session', 'saved-local', { hasText: true }),
-  blankPrefillIgnored: _rootPrefillNeedsFreshComposer(null, 'saved-local', { hasText: false })
+  withDraft: _prefillHasDraftText({ hasText: true }),
+  withoutDraft: _prefillHasDraftText({ hasText: false })
 };
 console.log(JSON.stringify(result));
 """
     payload = json.loads(_run_node(source))
-    assert payload == {
-        "savedLocalWins": True,
-        "explicitSessionWins": False,
-        "blankPrefillIgnored": False,
-    }
-    prefill_guard = BOOT_JS.find("if(_rootPrefillNeedsFreshComposer(urlSession, savedLocal, prefillIntent)){")
-    saved_state_pos = BOOT_JS.find("const savedSidebarOnlyState=(!urlSession&&savedLocal)")
-    saved_guard = BOOT_JS.find(
-        "if(savedSidebarOnlyState&&savedSidebarOnlyState.sidebarOnly){",
-        saved_state_pos,
+    assert payload == {"withDraft": True, "withoutDraft": False}
+    assert "const saved=urlSession;" in BOOT_JS, (
+        "root boot must restore only an explicit URL session; a bare '/' "
+        "with a prefill query must land on the fresh composer"
     )
-    load_pos = BOOT_JS.find("await loadSession(saved, {preserveActiveInput:true});")
-    assert prefill_guard >= 0
-    assert saved_state_pos >= 0
-    assert saved_guard > saved_state_pos
-    assert prefill_guard > saved_guard
-    assert load_pos > prefill_guard
+    assert "if(_rootPrefillNeedsFreshComposer(urlSession, savedLocal, prefillIntent)){" not in BOOT_JS, (
+        "the saved-local prefill override is obsolete: root boot never "
+        "restores a saved session, so prefill always lands on a fresh composer"
+    )
+    no_saved_pos = BOOT_JS.find("// no saved session")
+    assert no_saved_pos > 0, "no-saved-session boot branch not found"
+    assert BOOT_JS.find("await _finalizeComposerPrefillOnBoot(prefillIntent);", no_saved_pos) > no_saved_pos, (
+        "the no-saved-session boot path must still apply the composer prefill"
+    )
 
 
 def test_fresh_default_workspace_bind_skips_prefill_draft_boot():
@@ -314,15 +309,12 @@ global.window = {
   }
 };
 evalSession('_sessionIdFromLocation');
-evalBoot('_prefillHasDraftText');
-evalBoot('_rootPrefillNeedsFreshComposer');
 console.log(JSON.stringify({
-  urlSession: _sessionIdFromLocation(),
-  bypassRootOverride: _rootPrefillNeedsFreshComposer(_sessionIdFromLocation(), 'saved-local', { hasText: true })
+  urlSession: _sessionIdFromLocation()
 }));
 """
     payload = json.loads(_run_node(source))
-    assert payload == {"urlSession": "url-target", "bypassRootOverride": False}
+    assert payload == {"urlSession": "url-target"}
     query_source = _node_prelude() + """
 global.window = {
   location: {
@@ -332,15 +324,12 @@ global.window = {
   }
 };
 evalSession('_sessionIdFromLocation');
-evalBoot('_prefillHasDraftText');
-evalBoot('_rootPrefillNeedsFreshComposer');
 console.log(JSON.stringify({
-  urlSession: _sessionIdFromLocation(),
-  bypassRootOverride: _rootPrefillNeedsFreshComposer(_sessionIdFromLocation(), 'saved-local', { hasText: true })
+  urlSession: _sessionIdFromLocation()
 }));
 """
     query_payload = json.loads(_run_node(query_source))
-    assert query_payload == {"urlSession": "query-target", "bypassRootOverride": False}
+    assert query_payload == {"urlSession": "query-target"}
     prefill_pos = BOOT_JS.find(
         "const prefillIntent=(typeof _composerPrefillIntentFromLocation==='function')?_composerPrefillIntentFromLocation():null;"
     )
@@ -356,7 +345,7 @@ console.log(JSON.stringify({
     )
     new_pos = BOOT_JS.find("await newSession(true);", active_profile_pos)
     load_pos = BOOT_JS.find("await loadSession(saved, {preserveActiveInput:true});", active_profile_pos)
-    saved_pos = BOOT_JS.find("const saved=urlSession||savedLocal;")
+    saved_pos = BOOT_JS.find("const saved=urlSession;")
     check_pos = BOOT_JS.find("await checkInflightOnBoot(saved);", load_pos)
     apply_pos = BOOT_JS.find("await _finalizeComposerPrefillOnBoot(prefillIntent);", check_pos)
     assert saved_pos >= 0

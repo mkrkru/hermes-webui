@@ -103,34 +103,10 @@ async function cancelSessionStream(session){
   return true;
 }
 
-async function _savedSessionShouldStaySidebarOnly(sid){
-  const state = await _savedSessionSidebarOnlyState(sid);
-  return !!(state&&state.sidebarOnly);
-}
-
-async function _savedSessionSidebarOnlyState(sid){
-  if(!sid) return false;
-  try{
-    const data = await api(`/api/session?session_id=${encodeURIComponent(sid)}&messages=0&resolve_model=0`);
-    const session = data&&data.session;
-    const archived = !!(session&&session.archived);
-    const running = !!(session&&(session.active_stream_id||session.pending_user_message));
-    return {sidebarOnly:archived||running, archived};
-  }catch(e){
-    return null;
-  }
-}
-
 // ── Mobile navigation ──────────────────────────────────────────────────────
 // URL prefill boot helpers.
 function _prefillHasDraftText(prefillIntent){
   return !!(prefillIntent&&prefillIntent.hasText);
-}
-function _rootPrefillNeedsFreshComposer(urlSession, savedLocal, prefillIntent){
-  return !urlSession&&!!savedLocal&&_prefillHasDraftText(prefillIntent);
-}
-function _profileQueryBlocksSavedLocalRestore(profileIntent, urlSession){
-  return !!(profileIntent&&profileIntent.hasParam&&profileIntent.valid&&!urlSession);
 }
 function _shouldStartFreshPwaChat(action,urlSession){
   return action==='new-chat'&&!urlSession;
@@ -3622,7 +3598,6 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
   const titleLabel=$('titlebarProfileLabel');
   if(titleLabel) titleLabel.textContent=S.activeProfile||'default';
   const profileIntent=(typeof _profileQueryIntentFromLocation==='function')?_profileQueryIntentFromLocation():null;
-  const _savedLocalBeforeProfileSwitch=localStorage.getItem('hermes-webui-session');
   const _profileSwitchProfileBefore=S.activeProfile||'default';
   const _profileSwitchIsDefaultBefore=!!S.activeProfileIsDefault;
   let _profileSwitchCompleted=false;
@@ -3759,42 +3734,15 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
       syncTopbar();syncWorkspacePanelState();await renderSessionList();await _finalizeComposerPrefillOnBoot(prefillIntent);if(typeof startGatewaySSE==='function')startGatewaySSE();return;
     }catch(e){console.warn('[pwa] new-chat launch action failed', e);}
   }
-  const _profileQueryBlocksSavedLocal=_profileQueryBlocksSavedLocalRestore(profileIntent, urlSession);
-  if(_profileQueryBlocksSavedLocal&&_profileSwitchCompleted&&_profileSwitchChangedProfile){
-    try{
-      if(localStorage.getItem('hermes-webui-session')===_savedLocalBeforeProfileSwitch) localStorage.removeItem('hermes-webui-session');
-    }catch(_){}
-  }
-  const savedLocal=localStorage.getItem('hermes-webui-session');
-  const saved=urlSession||savedLocal;
+  // Root-page boot opens a fresh chat instead of resuming the last session:
+  // only a session explicitly present in the URL (/session/<id> or ?session=)
+  // is restored. The 'hermes-webui-session' localStorage key stays a
+  // write-through record (session switches update it so the `storage` event
+  // can refresh the sidebar in other tabs), but it is no longer a boot
+  // restore source — bare "/" always lands on the empty new-chat composer.
+  const saved=urlSession;
   if(saved){
     try{
-      const savedSidebarOnlyState=(!urlSession&&savedLocal)
-        ? await _savedSessionSidebarOnlyState(savedLocal)
-        : null;
-      if(savedSidebarOnlyState&&savedSidebarOnlyState.sidebarOnly){
-        if(savedSidebarOnlyState.archived){
-          try{localStorage.removeItem('hermes-webui-session');}catch(_){}
-        }
-        S.session=null; S.messages=[]; S.activeStreamId=null; S.busy=false;
-        S._bootReady=true;
-        syncTopbar();syncWorkspacePanelState();
-        $('emptyState').style.display='';
-        await renderSessionList();await _finalizeComposerPrefillOnBoot(prefillIntent);if(typeof startGatewaySSE==='function')startGatewaySSE();
-        return;
-      }
-      if(_rootPrefillNeedsFreshComposer(urlSession, savedLocal, prefillIntent)){
-        S.session=null; S.messages=[]; S.activeStreamId=null; S.busy=false;
-        S._bootReady=true;
-        const _ephPanelPref=localStorage.getItem('hermes-webui-workspace-panel-pref')==='open'
-          || localStorage.getItem('hermes-webui-workspace-panel')==='open';
-        if(_ephPanelPref&&!_isCompactWorkspaceViewport()) _workspacePanelMode='browse';
-        await _maybeBindFreshDefaultWorkspaceSession(prefillIntent);
-        syncTopbar();syncWorkspacePanelState();
-        $('emptyState').style.display='';
-        await renderSessionList();await _finalizeComposerPrefillOnBoot(prefillIntent);if(typeof startGatewaySSE==='function')startGatewaySSE();
-        return;
-      }
       await loadSession(saved, {preserveActiveInput:true});
       // Hard refresh starts from the static HTML model list. Hydrate the live
       // catalog after the saved session is known, then re-apply that session's
@@ -3805,10 +3753,9 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
       // If the restored session has no messages it is an ephemeral scratch pad —
       // treat the page as a fresh start rather than resuming a blank conversation.
       // loadSession() already ran, so loadDir() has populated the workspace file tree.
-      // Do NOT remove the session ID from localStorage — keeping it means every
-      // subsequent refresh will also run loadSession() → loadDir() → files stay visible.
-      // Removing it here caused the file tree to go blank on the second refresh
-      // because the "no saved session" path never calls loadDir (#workspace-files).
+      // Do NOT remove the session ID from localStorage here — the key is a
+      // write-through record for cross-tab sidebar refresh (and this block must
+      // not contain a removeItem call per #workspace-files regression tests).
       const _restoredInFlight = S.session && (
         S.session.active_stream_id ||
         S.session.pending_user_message
