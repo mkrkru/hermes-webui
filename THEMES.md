@@ -59,6 +59,7 @@ absent for light. System mode tracks the OS preference at runtime.
 | **Nous** | Steel-blue accent with dashed technical surfaces. |
 | **Geist Contrast** (`geist-contrast`) | Geist-inspired monochrome surfaces with a restrained dark-mode `#FFF175` accent. |
 | **Zeus** | OLED-near-black dark surfaces that keep the default gold accent. Dark-focused; falls back to the default light palette in light mode. |
+| **Indigo** | Soft deep-blue palette: cool blue-tinted neutrals, navy-dark mode, and a muted ultramarine accent (softened from `#0100F2`). |
 
 Each skin defines paired light + dark variants so it reads cleanly on either
 theme. The skin is applied as `data-skin="<name>"` on `<html>` (the default

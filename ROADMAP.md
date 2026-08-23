@@ -221,7 +221,7 @@ work has shifted from "reach parity" to "harden reliability + widen distribution
 
 ### Visual / UX
 - [x] 3 base modes — Light, Dark, System (auto-sync)
-- [x] 21 skins layered on the base mode — default, ares, catppuccin, charizard, codex, geist-contrast, github, graphite, hepburn, mono, neon, neon-paint, neon-soft, nous, poseidon, sienna, sisyphus, slate, terracotta, verdigris, zeus
+- [x] 22 skins layered on the base mode — default, ares, catppuccin, charizard, codex, geist-contrast, github, graphite, hepburn, indigo, mono, neon, neon-paint, neon-soft, nous, poseidon, sienna, sisyphus, slate, terracotta, verdigris, zeus
 - [x] 2-axis appearance model (base mode + skin) for community theme contributions
 - [x] Mermaid diagram rendering (with fit / fullscreen toolbar)
 - [x] KaTeX math rendering with fence-before-math fix

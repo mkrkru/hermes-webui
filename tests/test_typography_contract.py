@@ -74,7 +74,7 @@ def test_msg_body_uses_conversation_font():
 
 
 def test_builtin_skin_msg_body_rules_use_conversation_font():
-    for skin in ("graphite", "codex", "terracotta", "github"):
+    for skin in ("graphite", "codex", "terracotta", "github", "indigo"):
         selector = (
             f':root[data-skin="{skin}"] .msg-body'
             '{font-family:var(--font-conversation);font-size:13px;font-weight:430;letter-spacing:0;line-height:1.6;}'
