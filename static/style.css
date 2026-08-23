@@ -2546,25 +2546,13 @@
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;color:var(--muted);}
   .empty-state.no-suggestions .suggestion-grid{display:none}
   .empty-state.no-welcome{display:none}
-  /* Empty-state brand mark: a free-breathing winged caduceus with a soft
-     "spirit" bloom behind it — no app-icon tile. Glow + mark gradient are
-     tuned separately for dark vs light themes (see --logo-glow / .hm-g* below). */
+  /* Empty-state brand mark: the portal figure art from the Hermes Agent
+     site — transparent background, no tile, no glow, in every theme. */
   .empty-logo{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:10px;background:none;border:none;border-radius:0;box-shadow:none;}
-  .empty-logo::before{content:"";position:absolute;left:50%;top:50%;width:190px;height:190px;transform:translate(-50%,-50%);border-radius:50%;background:var(--logo-glow);z-index:0;pointer-events:none;}
   .empty-logo svg{display:none;}
-  .empty-portal-figure{position:relative;z-index:1;display:block;width:96px;height:auto;margin:0 auto;filter:drop-shadow(0 0 16px rgba(255,255,255,.22));}
-  :root:not(.dark) .empty-portal-figure{filter:drop-shadow(0 0 14px rgba(15,20,40,.30));}
-  /* Light themes (default :root): deeper, richer gradient holds contrast on
-     a pale background; cooler, restrained bloom. */
-  :root .empty-logo .hm-g0{stop-color:#0AA6CC;}
-  :root .empty-logo .hm-g1{stop-color:#1E63D6;}
-  :root{--logo-glow:radial-gradient(circle,rgba(30,99,214,0.15) 0%,rgba(10,166,204,0.07) 45%,transparent 70%);}
-  /* Dark themes: bright cyan→blue mark with a luminous bloom. */
-  :root.dark .empty-logo .hm-g0{stop-color:#08EBF1;}
-  :root.dark .empty-logo .hm-g1{stop-color:#3889FD;}
-  :root.dark{--logo-glow:radial-gradient(circle,rgba(8,235,241,0.20) 0%,rgba(56,137,253,0.15) 38%,transparent 72%);}
+  .empty-portal-figure{position:relative;z-index:1;display:block;width:96px;height:auto;margin:0 auto;}
   @media (prefers-reduced-motion: no-preference){
-    .empty-logo svg{animation:emptyLogoRise .5s ease-out both;}
+    .empty-portal-figure{animation:emptyLogoRise .5s ease-out both;}
     @keyframes emptyLogoRise{from{opacity:0;transform:translateY(6px) scale(.96);}to{opacity:1;transform:none;}}
   }
   .empty-state h2{font-size:20px;color:var(--text);font-weight:700;letter-spacing:-.02em;}
