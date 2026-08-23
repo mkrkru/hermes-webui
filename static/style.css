@@ -1353,7 +1353,7 @@
   }
   :root.dark[data-skin="electric"]{
     color-scheme:dark;
-    --bg:#0000F2;--sidebar:#0F0F18;--surface:#0F0F18;--surface-subtle:rgba(255,255,255,.04);--surface-subtle-hover:rgba(255,255,255,.08);
+    --bg:#0000F2;--sidebar:#07070D;--surface:#0F0F18;--surface-subtle:rgba(255,255,255,.04);--surface-subtle-hover:rgba(255,255,255,.08);
     --main-bg:#0000F2;--topbar-bg:rgba(0,0,242,.96);
     --border:rgba(245,245,245,.16);--border2:rgba(245,245,245,.28);--border-subtle:rgba(245,245,245,.08);--border-muted:rgba(245,245,245,.14);
     --text:#F5F5F5;--strong:#FFFFFF;--muted:rgba(245,245,245,.62);--em:#EDFF45;
@@ -1401,6 +1401,29 @@
   /* Image lightbox */
   :root.dark[data-skin="electric"] .img-lightbox-close:hover{background:rgba(237,255,69,.35);}
   :root.dark[data-skin="electric"] .img-lightbox-nav:hover{background:rgba(237,255,69,.40);}
+  /* Send button: lime with blue glyph (site CTA inversion; white glyph on lime
+     has poor contrast) */
+  :root.dark[data-skin="electric"] .send-btn{background:var(--accent);color:#0000F2;box-shadow:0 2px 10px rgba(237,255,69,.25);}
+  :root.dark[data-skin="electric"] .send-btn:hover{background:var(--accent-hover);color:#0000F2;}
+  /* Topbar: lime hairline like the docs navbar's gold hairline */
+  :root.dark[data-skin="electric"] .topbar{border-bottom-color:rgba(237,255,69,.16);}
+  /* Portal figure from the Hermes Agent site footer (web-assets.nousresearch.com)
+     behind the welcome screen. Light: blue line-art on paper (multiply drops the
+     white plate). Dark: inverted to lime line-art, screen-blended onto the blue
+     canvas — the site's inversion motif. */
+  :root[data-skin="electric"] .empty-state{position:relative;overflow:hidden;}
+  :root[data-skin="electric"] .empty-state::after{
+    content:'';position:absolute;right:-20px;bottom:-24px;width:min(300px,40vw);
+    aspect-ratio:1129/1418;pointer-events:none;opacity:.9;
+    background:url('skins/electric-portal-figure.webp') center bottom/contain no-repeat;
+    mix-blend-mode:multiply;
+  }
+  :root.dark[data-skin="electric"] .empty-state::after{
+    filter:invert(1);mix-blend-mode:screen;opacity:.7;
+  }
+  @media(max-width:640px){
+    :root[data-skin="electric"] .empty-state::after{width:min(190px,46vw);right:-12px;bottom:-14px;}
+  }
 
   /* #594: app-dialog light mode overrides — base styles use hardcoded dark gradients */
   :root:not(.dark) .app-dialog{

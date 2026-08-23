@@ -35,9 +35,24 @@ def test_electric_light_variant_is_blue_on_paper():
 def test_electric_dark_variant_is_blue_canvas_with_lime_accent():
     assert ':root.dark[data-skin="electric"]{' in CSS
     assert "--bg:#0000F2" in CSS
-    assert "--sidebar:#0F0F18" in CSS
+    assert "--sidebar:#07070D" in CSS
+    assert "--surface:#0F0F18" in CSS
     assert "--accent:#EDFF45" in CSS
     assert "--text:#F5F5F5" in CSS
+
+
+def test_electric_dark_cta_and_chrome_accents():
+    assert ':root.dark[data-skin="electric"] .send-btn' in CSS
+    assert ':root.dark[data-skin="electric"] .topbar' in CSS
+
+
+def test_electric_portal_figure_asset_and_welcome_art():
+    asset = REPO / "static" / "skins" / "electric-portal-figure.webp"
+    assert asset.is_file(), "portal figure asset must ship in static/skins/"
+    assert asset.stat().st_size > 100_000, "portal figure asset looks truncated"
+    assert "url('skins/electric-portal-figure.webp')" in CSS
+    assert ':root[data-skin="electric"] .empty-state::after' in CSS
+    assert ':root.dark[data-skin="electric"] .empty-state::after' in CSS
 
 
 def test_electric_dark_surfaces_override_default_navy_modals():
