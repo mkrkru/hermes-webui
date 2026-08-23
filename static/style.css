@@ -2544,22 +2544,31 @@
   .dot:nth-child(2){animation-delay:.22s;}.dot:nth-child(3){animation-delay:.44s;}
   @keyframes pulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:.8;transform:scale(1)}}
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;color:var(--muted);}
-  .empty-state.no-suggestions .suggestion-grid{display:none}
   .empty-state.no-welcome{display:none}
-  /* Empty-state brand mark: the portal figure art from the Hermes Agent
-     site — transparent background, no tile, no glow, in every theme. */
+  /* Empty-state brand mark: the animated portal figure orb video from the
+     Hermes Agent site — transparent background, no tile, no glow, in every
+     theme. A static poster image replaces the video when the user prefers
+     reduced motion. */
   .empty-logo{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:10px;background:none;border:none;border-radius:0;box-shadow:none;}
   .empty-logo svg{display:none;}
-  .empty-portal-figure{position:relative;z-index:1;display:block;width:96px;height:auto;margin:0 auto;}
+  .empty-portal-video{position:relative;z-index:1;display:block;width:200px;height:auto;margin:0 auto;}
+  .empty-portal-poster{position:relative;z-index:1;display:none;width:200px;height:auto;margin:0 auto;}
+  @media (max-width:480px){
+    .empty-portal-video,.empty-portal-poster{width:150px;}
+  }
   @media (prefers-reduced-motion: no-preference){
-    .empty-portal-figure{animation:emptyLogoRise .5s ease-out both;}
+    .empty-portal-video,.empty-portal-poster{animation:emptyLogoRise .5s ease-out both;}
     @keyframes emptyLogoRise{from{opacity:0;transform:translateY(6px) scale(.96);}to{opacity:1;transform:none;}}
   }
-  .empty-state h2{font-size:20px;color:var(--text);font-weight:700;letter-spacing:-.02em;}
-  .empty-state p{font-size:14px;text-align:center;max-width:320px;}
-  .suggestion-grid{display:flex;flex-direction:column;gap:8px;margin-top:12px;width:100%;max-width:380px;}
-  .suggestion{padding:12px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s;text-align:left;}
-  .suggestion:hover{background:var(--accent-bg);color:var(--text);border-color:var(--accent-bg);transform:translateX(2px);}
+  @media (prefers-reduced-motion: reduce){
+    .empty-portal-video{display:none;}
+    .empty-portal-poster{display:block;}
+  }
+  /* "HELLO, MKRV" greeting below the figure: Sigurd Variable (the display
+     font behind "THE AGENT THAT GROWS WITH YOU" on the Hermes Agent site),
+     light weight, generous tracking, tight leading. */
+  @font-face{font-family:'Sigurd Variable';src:url('sigurd-variable.woff2') format('woff2');font-weight:300 800;font-display:swap;}
+  .empty-greeting{margin:0;font-family:'Sigurd Variable','Times New Roman',serif;font-weight:300;font-size:clamp(30px,5vw,48px);line-height:.88;letter-spacing:.03em;color:var(--text);text-align:center;}
   /* ── Composer ── */
   .composer-wrap{padding:12px 20px 16px;background:var(--bg);flex-shrink:0;}
   .composer-box{max-width:clamp(780px,60vw,1100px);margin:0 auto;background:linear-gradient(var(--input-bg),var(--input-bg)),var(--bg);border:1px solid var(--border2);border-radius:16px;display:flex;flex-direction:column;transition:border-color .2s,box-shadow .2s;position:relative;z-index:2;}
