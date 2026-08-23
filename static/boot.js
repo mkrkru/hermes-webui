@@ -128,10 +128,9 @@ async function _finalizeComposerPrefillOnBoot(prefillIntent){
   await _applyComposerPrefillOnBoot(prefillIntent);
 }
 // Focus the composer on chat-page load so the user can type immediately.
-// Skipped on phone viewports to avoid popping the soft keyboard.
+// Includes phones: focus pops the soft keyboard, which the user opted into.
 function _focusComposerOnChatPage(){
   try{
-    if(_isPhoneWidthViewport()) return;
     const msg=$('msg');
     if(msg&&typeof msg.focus==='function') msg.focus();
   }catch(_){}

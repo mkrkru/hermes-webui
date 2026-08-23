@@ -57,8 +57,12 @@ def test_boot_focuses_composer_on_chat_page():
     assert "function _focusComposerOnChatPage(){" in BOOT_JS, (
         "boot composer-focus helper missing"
     )
-    assert "_isPhoneWidthViewport()" in BOOT_JS, (
-        "composer autofocus must skip phone viewports (soft keyboard)"
+    helper_start = BOOT_JS.index("function _focusComposerOnChatPage(){")
+    helper_end = BOOT_JS.index("// Mobile navigation.", helper_start)
+    helper = BOOT_JS[helper_start:helper_end]
+    assert "_isPhoneWidthViewport()" not in helper, (
+        "composer autofocus must apply on phones too (user opted into the "
+        "soft keyboard popping on mobile)"
     )
     focus_calls = BOOT_JS.count("_focusComposerOnChatPage();")
     assert focus_calls == 4, (
