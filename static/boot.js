@@ -127,6 +127,15 @@ async function _finalizeComposerPrefillOnBoot(prefillIntent){
   }
   await _applyComposerPrefillOnBoot(prefillIntent);
 }
+// Focus the composer on chat-page load so the user can type immediately.
+// Skipped on phone viewports to avoid popping the soft keyboard.
+function _focusComposerOnChatPage(){
+  try{
+    if(_isPhoneWidthViewport()) return;
+    const msg=$('msg');
+    if(msg&&typeof msg.focus==='function') msg.focus();
+  }catch(_){}
+}
 
 // Mobile navigation.
 let _workspacePanelMode='closed'; // 'closed' | 'browse' | 'preview'
@@ -2450,24 +2459,27 @@ document.addEventListener('keydown',async e=>{
       return;
     }
   }
+  // Cmd/Ctrl+K focuses the message composer. Any legacy behavior that used to
+  // create a new session on this chord has been removed — the + button is the
+  // new-chat entry point.
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){
     const t=e.target;
     const isText=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable);
     if(isText) return;
     e.preventDefault();
-    // If the current session has no messages AND nothing is in flight, just focus
-    // the composer rather than creating another empty session that will clutter
-    // the sidebar list (#1171). See the matching guard in $('btnNewChat').onclick
-    // and bug #1432 for why the in-flight check is needed.
-    if(_currentSessionIsReusableEmptyChat()){
-      $('msg').focus();return;
-    }
-    // Cmd/Ctrl+K should always create a new conversation, even while the current
-    // one is still streaming. The old !S.busy guard meant users had to wait for
-    // a long generation to finish before they could start something new — exactly
-    // the moment they want to switch context. newSession() leaves the in-flight
-    // stream running on its own session; the user just gets a fresh blank one.
-    await newSession();await renderSessionList();closeMobileSidebar();$('msg').focus();
+    const composer=$('msg');
+    if(composer) composer.focus();
+    return;
+  }
+  // Ctrl+C (not Cmd, not with Shift/Alt) stops the active run — same effect as
+  // the Stop button / /stop. Hijacked ONLY while a stream is active; when the
+  // chat is idle the browser's normal copy-to-clipboard behavior is untouched.
+  if(e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&(e.key==='c'||e.key==='C')){
+    const active=!!(S&&(S.activeStreamId||S.busy||(S.session&&S.session.active_stream_id)));
+    if(!active) return;
+    if(e.cancelable)e.preventDefault();
+    if(typeof cancelStream==='function') cancelStream('keyboard-cancel');
+    return;
   }
   // Cmd/Ctrl+, opens/closes Settings (VS Code convention).
   // Fire globally — like VS Code, don't skip text inputs.
@@ -3731,6 +3743,7 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
         try{Promise.resolve(_startBootModelDropdown()).catch(()=>{});}catch(_){}
       }
       S._bootReady=true;
+      _focusComposerOnChatPage();
       syncTopbar();syncWorkspacePanelState();await renderSessionList();await _finalizeComposerPrefillOnBoot(prefillIntent);if(typeof startGatewaySSE==='function')startGatewaySSE();return;
     }catch(e){console.warn('[pwa] new-chat launch action failed', e);}
   }
@@ -3769,6 +3782,7 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
       if(S.session && (S.session.message_count||0) === 0 && !_restoredInFlight && !_restoredHasDraft){
         S.session=null; S.messages=[];
         S._bootReady=true;
+        _focusComposerOnChatPage();
         // Restore panel pref before syncing so the workspace panel stays visible
         // even though there is no active session (#workspace-persist).
         const _ephPanelPref=localStorage.getItem('hermes-webui-workspace-panel-pref')==='open'
@@ -3789,11 +3803,13 @@ window._mirrorSpeechSettingsFromServer=_mirrorSpeechSettingsFromServer;
         _workspacePanelMode='browse';
       }
       S._bootReady=true;
+      _focusComposerOnChatPage();
       syncTopbar();syncWorkspacePanelState();await renderSessionList();if(typeof startGatewaySSE==='function')startGatewaySSE();await checkInflightOnBoot(saved);await _finalizeComposerPrefillOnBoot(prefillIntent);return;}
     catch(e){localStorage.removeItem('hermes-webui-session');}
   }
   // no saved session - show empty state, wait for user to hit +
   S._bootReady=true;
+  _focusComposerOnChatPage();
   syncTopbar();
   // Restore panel pref so the workspace panel stays visible on a fresh load if the
   // user had it open during their last session (#workspace-persist).
