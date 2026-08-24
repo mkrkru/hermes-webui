@@ -12886,6 +12886,33 @@ def _run_agent_streaming(
 # ============================================================
 
 
+def _replace_pending_steer(agent, text: str) -> bool:
+    """Replace the agent's pending steer buffer (no append), mirroring the
+    agent's own steer() lock discipline so an edit lands atomically."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return False
+    lock = getattr(agent, "_pending_steer_lock", None)
+    if lock is not None:
+        with lock:
+            agent._pending_steer = cleaned
+    else:
+        agent._pending_steer = cleaned
+    return True
+
+
+def _cancel_pending_steer(agent) -> bool:
+    """Clear the agent's pending steer buffer so a not-yet-applied steer is
+    dropped before the next tool-result boundary."""
+    lock = getattr(agent, "_pending_steer_lock", None)
+    if lock is not None:
+        with lock:
+            agent._pending_steer = None
+    else:
+        agent._pending_steer = None
+    return True
+
+
 def _handle_chat_steer(handler, body: dict) -> bool:
     """Inject a /steer payload into the active agent for a session.
 
@@ -12916,9 +12943,12 @@ def _handle_chat_steer(handler, body: dict) -> bool:
 
     sid = str((body or {}).get("session_id", "") or "").strip()
     text = str((body or {}).get("text", "") or "").strip()
+    mode = str((body or {}).get("mode", "steer") or "steer").strip() or "steer"
+    if mode not in ("steer", "replace", "cancel"):
+        mode = "steer"
     if not sid:
         return bad(handler, "session_id required")
-    if not text:
+    if mode != "cancel" and not text:
         return bad(handler, "text required")
 
     evicted_cached_entry = None
@@ -12992,9 +13022,14 @@ def _handle_chat_steer(handler, body: dict) -> bool:
                            "stream_id": None})
 
     try:
-        accepted = bool(agent.steer(text))
+        if mode == "cancel":
+            accepted = _cancel_pending_steer(agent)
+        elif mode == "replace":
+            accepted = _replace_pending_steer(agent, text)
+        else:
+            accepted = bool(agent.steer(text))
     except Exception as exc:
-        logger.debug("agent.steer() raised for session=%s: %s", sid, exc)
+        logger.debug("agent steer (%s) raised for session=%s: %s", mode, sid, exc)
         return j(handler, {"accepted": False, "fallback": "steer_error",
                            "stream_id": active_stream_id})
 

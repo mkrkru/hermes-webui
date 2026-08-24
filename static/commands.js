@@ -1424,23 +1424,136 @@ function _steerFailureMessageKey(fallback) {
     ? key : 'steer_fail_unknown';
 }
 
+// Steer edit state: while a steer indicator's input is open, new steers are
+// held in _steerQueue (not delivered to the agent) until the edit is
+// committed or cancelled, preserving FIFO order.
+let _steerEditActive = false;
+let _steerQueue = [];
+
+function _steerOwnerSid(){
+  return (typeof S!=='undefined'&&S.session&&S.session.session_id)||'';
+}
+
+async function _steerModeRequest(mode, text){
+  const sid=_steerOwnerSid();
+  if(!sid) return {accepted:false, fallback:'no_active_session'};
+  const body={session_id:sid, mode};
+  if(text!==undefined) body.text=text;
+  try{
+    return await api('/api/chat/steer',{method:'POST',body:JSON.stringify(body)});
+  }catch(_){
+    return {accepted:false, fallback:'network_error'};
+  }
+}
+
+function _steerBodyLabel(text){
+  return text.length>120?text.slice(0,117)+'…':text;
+}
+
 function _showSteerIndicator(text){
   const inner=document.getElementById('msgInner');
-  if(!inner) return;
+  if(!inner) return null;
   // Append a new indicator instead of replacing the previous one, so every
   // steer sent during the run stays visible (previously only the last showed).
   const el=document.createElement('div');
   el.className='steer-indicator';
+  el.dataset.steerText=text;
   const badge=document.createElement('span');
   badge.className='steer-badge';
   badge.textContent='Steer';
   const body=document.createElement('span');
   body.className='steer-body';
-  body.textContent=text.length>120?text.slice(0,117)+'…':text;
+  body.textContent=_steerBodyLabel(text);
   el.appendChild(badge);
   el.appendChild(body);
+  el.addEventListener('click',()=>_beginSteerEdit(el));
   inner.appendChild(el);
   if(typeof scrollToBottom==='function') scrollToBottom();
+  return el;
+}
+
+function _beginSteerEdit(el){
+  if(!el||el.dataset.editing==='1') return;
+  const original=String(el.dataset.steerText||'');
+  el.dataset.editing='1';
+  _steerEditActive=true;
+  const body=el.querySelector('.steer-body');
+  if(body) body.remove();
+  const input=document.createElement('input');
+  input.className='steer-edit-input';
+  input.type='text';
+  input.value=original;
+  input.spellcheck=false;
+  const cancelBtn=document.createElement('button');
+  cancelBtn.type='button';
+  cancelBtn.className='steer-edit-cancel';
+  cancelBtn.title=(typeof t==='function'?(t('steer_recovery_dismiss')||'Dismiss'):'Dismiss');
+  cancelBtn.innerHTML=li('x',12);
+  el.appendChild(input);
+  el.appendChild(cancelBtn);
+  const commit=()=>_commitSteerEdit(el,input.value,original);
+  const cancel=()=>_cancelSteerEdit(el,original);
+  input.addEventListener('keydown',(e)=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur',()=>commit());
+  cancelBtn.addEventListener('click',(e)=>{ e.stopPropagation(); cancel(); });
+  try{ input.focus(); input.select(); }catch(_){}
+}
+
+function _restoreSteerBody(el,text){
+  const oldInput=el.querySelector('.steer-edit-input');
+  if(oldInput) oldInput.remove();
+  const oldCancel=el.querySelector('.steer-edit-cancel');
+  if(oldCancel) oldCancel.remove();
+  const body=document.createElement('span');
+  body.className='steer-body';
+  body.textContent=_steerBodyLabel(text);
+  el.appendChild(body);
+}
+
+async function _commitSteerEdit(el,newText,original){
+  if(!el||el.dataset.editing!=='1') return;
+  el.dataset.editing='';
+  _steerEditActive=false;
+  const cleaned=String(newText||'').trim();
+  if(cleaned && cleaned!==original){
+    const r=await _steerModeRequest('replace',cleaned);
+    if(r&&r.accepted){ el.dataset.steerText=cleaned; _restoreSteerBody(el,cleaned); }
+    else { _restoreSteerBody(el,original); }
+  } else if(!cleaned){
+    // Empty edit → treat as cancel: drop the pending steer entirely.
+    await _steerModeRequest('cancel');
+    el.remove();
+  } else {
+    _restoreSteerBody(el,original);
+  }
+  _flushSteerQueue();
+}
+
+async function _cancelSteerEdit(el,original){
+  if(!el) return;
+  const wasEditing=el.dataset.editing==='1';
+  el.dataset.editing='';
+  if(wasEditing) _steerEditActive=false;
+  await _steerModeRequest('cancel');
+  el.remove();
+  _flushSteerQueue();
+}
+
+async function _flushSteerQueue(){
+  if(_steerEditActive) return;
+  const queue=_steerQueue.slice();
+  _steerQueue=[];
+  for(const q of queue){
+    const r=await _steerModeRequest('steer',q.text);
+    if(r&&r.accepted){
+      showToast(t('cmd_steer_delivered'),2500);
+    } else {
+      showToast(t(_steerFailureMessageKey(r&&r.fallback)),3500);
+    }
+  }
 }
 
 function _dismissSteerIndicators(){
@@ -1452,6 +1565,8 @@ function _dismissSteerIndicators(){
   const els=inner.querySelectorAll('.steer-indicator');
   if(!els.length) return;
   els.forEach(el=>el.remove());
+  _steerEditActive=false;
+  _steerQueue=[];
 }
 
 function _showSteerRecovery(msg, explicitSteer, fallback) {
@@ -1661,6 +1776,16 @@ async function _trySteer(msg, explicitSteer){
     }
     showToast(t('cmd_steer_no_msg'));
     return false;
+  }
+  if(_steerEditActive){
+    // A steer indicator is being edited — hold this steer in the queue until
+    // the edit commits/cancels, then deliver it in FIFO order.
+    _steerQueue.push({text:steerText, ownerSid});
+    _steerUploadCache=null;
+    if(ownerSid&&typeof _clearComposerDraft==='function') _clearComposerDraft(ownerSid,_steerRestoreText(originalMsg,explicitSteer),pendingFilesSnapshot);
+    if(_steerOwnerIsCurrent(ownerSid)) _showSteerIndicator(_steerIndicatorText(originalMsg,pendingFilesSnapshot));
+    showToast(t('steer_leftover_queued'),2500);
+    return true;
   }
   try{
     result=await api('/api/chat/steer',{

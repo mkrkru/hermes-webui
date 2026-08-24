@@ -124,6 +124,56 @@ class TestHandleChatSteerHappyPath:
         assert body == {"accepted": True, "fallback": None, "stream_id": stream_id}
 
 
+class TestHandleChatSteerModes:
+    """The replace/cancel modes back the frontend's inline steer edit UI."""
+
+    def test_replace_mode_sets_pending_steer(self, _clear_caches):
+        from api.streaming import _handle_chat_steer
+        from api.config import SESSION_AGENT_CACHE, SESSION_AGENT_CACHE_LOCK, STREAMS, STREAMS_LOCK
+        sid, stream_id = "sid_replace", "stream_replace"
+        agent = MagicMock()
+        agent.steer = MagicMock(return_value=True)
+        agent._pending_steer = "old text"
+        with SESSION_AGENT_CACHE_LOCK:
+            SESSION_AGENT_CACHE[sid] = (agent, "sig")
+        with STREAMS_LOCK:
+            import queue as _q
+            STREAMS[stream_id] = _q.Queue()
+
+        sess = MagicMock()
+        sess.active_stream_id = stream_id
+        with patch("api.streaming.get_session", return_value=sess):
+            handler = _make_handler()
+            _handle_chat_steer(handler, {"session_id": sid, "text": "new text", "mode": "replace"})
+
+        agent.steer.assert_not_called()
+        assert agent._pending_steer == "new text"
+        body = _captured_response(handler)
+        assert body["accepted"] is True
+
+    def test_cancel_mode_clears_pending_steer_without_text(self, _clear_caches):
+        from api.streaming import _handle_chat_steer
+        from api.config import SESSION_AGENT_CACHE, SESSION_AGENT_CACHE_LOCK, STREAMS, STREAMS_LOCK
+        sid, stream_id = "sid_cancel", "stream_cancel"
+        agent = MagicMock()
+        agent._pending_steer = "stale steer"
+        with SESSION_AGENT_CACHE_LOCK:
+            SESSION_AGENT_CACHE[sid] = (agent, "sig")
+        with STREAMS_LOCK:
+            import queue as _q
+            STREAMS[stream_id] = _q.Queue()
+
+        sess = MagicMock()
+        sess.active_stream_id = stream_id
+        with patch("api.streaming.get_session", return_value=sess):
+            handler = _make_handler()
+            _handle_chat_steer(handler, {"session_id": sid, "mode": "cancel"})
+
+        assert agent._pending_steer is None
+        body = _captured_response(handler)
+        assert body["accepted"] is True
+
+
 class TestHandleChatSteerFallbacks:
     """Each gate that fails returns a structured fallback the frontend can branch on."""
 
