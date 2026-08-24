@@ -2612,6 +2612,14 @@ function _setActiveProjectFilter(projectId) {
   void renderSessionList({deferWhileInteracting:false});
 }
 
+function _setActiveWorkspaceFilter(ws) {
+  const next = ws === null ? null : String(ws || '');
+  if (_activeWorkspaceFilter === next) return;
+  _activeWorkspaceFilter = next;
+  renderSessionListFromCache();
+  void renderSessionList({deferWhileInteracting:false});
+}
+
 function _setSessionSourceFilter(filter) {
   const next = filter === 'cli' ? 'cli' : 'webui';
   if (_sessionSourceFilter === next) return;
@@ -3959,6 +3967,7 @@ let _allProjects = [];  // cached project list
 // to be something a user-created project_id can never collide with, which
 // double-underscore prefixes provide.
 const NO_PROJECT_FILTER = '__none__';
+let _activeWorkspaceFilter = null;  // workspace path filter (null = show all, '' = no workspace)
 let _activeProject = null;  // project_id filter (null = show all, NO_PROJECT_FILTER = unassigned only)
 const SHOW_ALL_PROFILES_STORAGE_KEY = 'hermes-show-all-profiles';
 let _showAllProfiles = false;  // false = filter to active profile only
@@ -4258,14 +4267,22 @@ function _setActiveSessionUrl(sid){
 }
 
 // ── Batch select mode ──
+function _syncSessionSelectModeButton(){
+  const btn=$('btnSessionSelectMode');
+  if(!btn) return;
+  btn.setAttribute('aria-pressed',_sessionSelectMode?'true':'false');
+  btn.classList.toggle('active',_sessionSelectMode);
+}
 function toggleSessionSelectMode(){
   _sessionSelectMode=!_sessionSelectMode;
   _selectedSessions.clear();
+  _syncSessionSelectModeButton();
   renderSessionListFromCache();
 }
 function exitSessionSelectMode(){
   _sessionSelectMode=false;
   _selectedSessions.clear();
+  _syncSessionSelectModeButton();
   const bar=$('batchActionBar');
   if(bar) bar.style.display='none';
   renderSessionListFromCache();
@@ -6640,8 +6657,21 @@ function _sessionSortTimestampMs(session) {
 }
 
 function _sessionRunningSortRank(session) {
+  // Don't float the currently-open (active) chat to the top of the list just
+  // because it is running — keep its position stable while the user works in it.
+  if(S.session && session && session.session_id === S.session.session_id) return 0;
   if(_isSessionEffectivelyStreaming(session)) return 1;
   return session && session.active_stream_id && session.has_pending_user_message ? 1 : 0;
+}
+
+function _sessionWorkspaceLabel(session) {
+  const ws = (session && session.workspace) ? String(session.workspace).trim() : '';
+  if (!ws) return (typeof t==='function' ? (t('no_workspace')||'No workspace') : 'No workspace');
+  if (typeof getWorkspaceFriendlyName==='function') {
+    const friendly = getWorkspaceFriendlyName(ws);
+    if (friendly && friendly !== ws) return friendly;
+  }
+  return ws.split('/').filter(Boolean).pop() || ws;
 }
 
 function _sessionSidebarSortCompare(a, b) {
@@ -7563,6 +7593,7 @@ function _partitionSidebarSessionRows(allMatched, activeSidForSidebar){
     } else if(_activeProject){
       if(s.project_id!==_activeProject) continue;
     }
+    if(_activeWorkspaceFilter!==null && String(s.workspace||'')!==_activeWorkspaceFilter) continue;
     referenceRaw.push(s);
     if(s.archived){
       if(isCli) cliArchivedCount++;
@@ -7605,6 +7636,7 @@ function _scopedSidebarReferenceRows(isCli){
     // Project scope: mirror _partitionSidebarSessionRows exactly.
     if(_activeProject===NO_PROJECT_FILTER){ if(s.project_id) return false; }
     else if(_activeProject){ if(s.project_id!==_activeProject) return false; }
+    if(_activeWorkspaceFilter!==null && String(s.workspace||'')!==_activeWorkspaceFilter) return false;
     return true;
   });
 }
@@ -7782,103 +7814,33 @@ function renderSessionListFromCache(){
     }
     list.appendChild(sourceTabs);
   }
-  // Project filter bar — show when there are real projects OR there are
-  // unassigned sessions (so the Unassigned chip has something to filter to).
-  const hasUnprojected=profileFiltered.some(s=>!s.project_id);
-  if(_allProjects.length>0||hasUnprojected){
+  // Workspace filter bar — one chip per distinct workspace in the visible set.
+  const wsCounts=new Map();
+  for(const s of profileFiltered){
+    const ws=(s&&s.workspace)?String(s.workspace):'';
+    wsCounts.set(ws,(wsCounts.get(ws)||0)+1);
+  }
+  if(wsCounts.size>0){
     const bar=document.createElement('div');
     bar.className='project-bar';
-    // "All" chip
     const allChip=document.createElement('span');
-    allChip.className='project-chip'+(!_activeProject?' active':'');
+    allChip.className='project-chip'+(_activeWorkspaceFilter===null?' active':'');
     allChip.textContent='All';
-    allChip.onclick=()=>{_setActiveProjectFilter(null);};
+    allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};
     bar.appendChild(allChip);
-    // "Unassigned" chip — only when there are sessions with no project to
-    // filter to. Hidden in the common case where every session is already
-    // organized, to keep the chip bar uncluttered.
-    if(hasUnprojected){
-      const noneChip=document.createElement('span');
-      noneChip.className='project-chip no-project'+(_activeProject===NO_PROJECT_FILTER?' active':'');
-      noneChip.textContent='Unassigned';
-      noneChip.title='Show conversations not yet assigned to a project';
-      noneChip.onclick=()=>{_setActiveProjectFilter(NO_PROJECT_FILTER);};
-      bar.appendChild(noneChip);
-    }
-    // Project chips
-    for(const p of _allProjects){
+    const wsEntries=[...wsCounts.entries()].sort((a,b)=>{
+      const la=(_sessionWorkspaceLabel({workspace:a[0]})||'').toLowerCase();
+      const lb=(_sessionWorkspaceLabel({workspace:b[0]})||'').toLowerCase();
+      return la<lb?-1:1;
+    });
+    for(const [wsPath] of wsEntries){
       const chip=document.createElement('span');
-      chip.className='project-chip'+(p.project_id===_activeProject?' active':'');
-      if(p.color){
-        const dot=document.createElement('span');
-        dot.className='color-dot';
-        dot.style.background=p.color;
-        chip.appendChild(dot);
-      }
-      const nameSpan=document.createElement('span');
-      nameSpan.textContent=p.name;
-      chip.appendChild(nameSpan);
-      let _pClickTimer=null;
-      chip.onclick=(e)=>{
-        clearTimeout(_pClickTimer);
-        _pClickTimer=setTimeout(()=>{_pClickTimer=null;_setActiveProjectFilter(p.project_id);},220);
-      };
-      chip.ondblclick=(e)=>{e.stopPropagation();clearTimeout(_pClickTimer);_pClickTimer=null;_startProjectRename(p,chip);};
-      chip.oncontextmenu=(e)=>{e.preventDefault();_showProjectContextMenu(e,p,chip);};
-      // Touch long-press → context menu (mobile UX: project chips can only be
-      // deleted via the right-click menu, which has no touch equivalent).
-      let _lpTimer=null;
-      let _lpHandled=false;
-      let _lpStartX=0,_lpStartY=0;
-      chip.addEventListener('touchstart',(e)=>{
-        const t=e.changedTouches&&e.changedTouches[0];
-        if(!t) return;
-        // Clear any in-flight timer before scheduling a new one, mirroring the
-        // session-item long-press path (_clearLongPressTimer). Without this a
-        // second finger / stray touchstart orphans the prior timer, which then
-        // fires unsuppressed ~500ms later and pops the menu after the gesture
-        // was cancelled.
-        if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}
-        _lpHandled=false;_lpStartX=t.clientX;_lpStartY=t.clientY;
-        chip.classList.add('long-pressing');
-        _lpTimer=setTimeout(()=>{
-          _lpTimer=null;
-          if(_lpHandled) return;  // already consumed by another gesture — stale fire is a no-op
-          _lpHandled=true;
-          chip.classList.remove('long-pressing');
-          clearTimeout(_pClickTimer);_pClickTimer=null;
-          const syn={clientX:t.clientX,clientY:t.clientY,preventDefault:()=>{}};
-          _showProjectContextMenu(syn,p,chip);
-        },500);
-      },{passive:true});
-      chip.addEventListener('touchmove',(e)=>{
-        if(!_lpTimer) return;
-        const t=e.changedTouches&&e.changedTouches[0];
-        if(!t) return;
-        if(Math.abs(t.clientX-_lpStartX)>10||Math.abs(t.clientY-_lpStartY)>10){
-          clearTimeout(_lpTimer);_lpTimer=null;
-          chip.classList.remove('long-pressing');
-        }
-      },{passive:true});
-      chip.addEventListener('touchend',(e)=>{
-        clearTimeout(_lpTimer);_lpTimer=null;
-        chip.classList.remove('long-pressing');
-        if(_lpHandled){e.preventDefault();e.stopPropagation();}
-      },{passive:false});
-      chip.addEventListener('touchcancel',()=>{
-        clearTimeout(_lpTimer);_lpTimer=null;_lpHandled=false;
-        chip.classList.remove('long-pressing');
-      },{passive:true});
-      if(window._projectQuickCreate) _attachProjectQuickCreateButton(chip,p);
+      chip.className='project-chip'+(_activeWorkspaceFilter===wsPath?' active':'');
+      chip.textContent=_sessionWorkspaceLabel({workspace:wsPath});
+      if(wsPath) chip.title=wsPath;
+      chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};
       bar.appendChild(chip);
     }
-    // Create button
-    const addBtn=document.createElement('button');
-    addBtn.className='project-create-btn';
-    addBtn.textContent='+';
-    addBtn.title='New project';
-    addBtn.onclick=(e)=>{e.stopPropagation();_startProjectCreate(bar,addBtn);};
-    bar.appendChild(addBtn);
     list.appendChild(bar);
   }
   // Profile filter toggle (show sessions from other profiles).
@@ -7935,13 +7897,19 @@ function renderSessionListFromCache(){
   let _groupCollapsed={};
   try{_groupCollapsed=JSON.parse(localStorage.getItem('hermes-date-groups-collapsed')||'{}');}catch(e){}
   const _saveCollapsed=()=>{try{localStorage.setItem('hermes-date-groups-collapsed',JSON.stringify(_groupCollapsed));}catch(e){}};
-  // Group sessions by date
+  // Group sessions by workspace (alphabetical by friendly name), then by
+  // recency within each workspace. Replaces the old date bucketing.
   const groups=[];
   let curLabel=null,curItems=[];
   if(pinned.length) groups.push({label:'\u2605 Pinned',items:pinned,isPinned:true});
-  for(const s of unpinned){
-    const ts=_sessionSortTimestampMs(s);
-    const label=_sessionTimeBucketLabel(ts, now);
+  const unpinnedByWorkspace=[...unpinned].sort((a,b)=>{
+    const la=(_sessionWorkspaceLabel(a)||'').toLowerCase();
+    const lb=(_sessionWorkspaceLabel(b)||'').toLowerCase();
+    if(la!==lb) return la<lb?-1:1;
+    return _sessionSidebarSortCompare(a,b);
+  });
+  for(const s of unpinnedByWorkspace){
+    const label=_sessionWorkspaceLabel(s);
     if(label!==curLabel){
       if(curItems.length) groups.push({label:curLabel,items:curItems});
       curLabel=label;curItems=[s];
@@ -8080,13 +8048,8 @@ function renderSessionListFromCache(){
       list.appendChild(more);
     }
   }
-  // Select mode toggle button (only when NOT in select mode)
-  if(!_sessionSelectMode){
-    const toggleBtn=document.createElement('div');toggleBtn.className='session-select-toggle';
-    toggleBtn.textContent=t('session_select_mode');
-    toggleBtn.onclick=(e)=>{e.stopPropagation();toggleSessionSelectMode();};
-    list.appendChild(toggleBtn);
-  }
+  // Select-mode toggle lives as an icon button next to New Chat (see
+  // #btnSessionSelectMode), so no bottom "Select" text button is rendered here.
   // Refresh FLIP and queued archive/delete reflow both drive
   // --session-reflow-offset. Refresh wins so one render has one transform writer.
   const reflowBefore=animateRefresh?flipBefore:_pendingSessionReflowPositions;

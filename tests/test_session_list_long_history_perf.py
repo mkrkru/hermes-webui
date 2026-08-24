@@ -316,10 +316,10 @@ def test_frontend_session_list_sorts_effective_streaming_rows_first():
     assert "const orderedSessions=[...sessions].sort(_sessionSidebarSortCompare);" in src
 
 
-def test_frontend_session_date_buckets_use_runtime_sort_timestamp():
+def test_frontend_session_buckets_group_by_workspace():
     src = (pathlib.Path(__file__).parent.parent / "static" / "sessions.js").read_text(encoding="utf-8")
-    loop_start = src.index("for(const s of unpinned){")
-    loop_body = src[loop_start:src.index("if(curItems.length) groups.push", loop_start)]
-
-    assert "const ts=_sessionSortTimestampMs(s);" in loop_body
-    assert "_sessionTimeBucketLabel(ts, now)" in loop_body
+    # Workspace grouping replaced the old date bucketing (Today/Yesterday/…).
+    assert "const unpinnedByWorkspace=[...unpinned].sort((a,b)=>" in src
+    assert "function _sessionWorkspaceLabel(session)" in src
+    assert "const label=_sessionWorkspaceLabel(s);" in src
+    assert "return _sessionSidebarSortCompare(a,b);" in src

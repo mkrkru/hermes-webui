@@ -57,12 +57,12 @@ def test_quick_create_button_attaches_filter_align_and_request_path():
 
 
 def test_quick_create_button_render_is_gated_off_by_default():
-    """#4676 quick-create buttons must be opt-in: the chip render site only
-    attaches the per-project '+' button when window._projectQuickCreate is set."""
+    """#4676 quick-create buttons were attached at the project-chip render site,
+    which was removed when the sidebar filter switched from project to workspace.
+    The helper itself remains for any future project UI."""
     src = _read(SESSIONS_JS)
-    assert "if(window._projectQuickCreate) _attachProjectQuickCreateButton(chip,p);" in src
-    # The attach call must never run unconditionally at the render site.
-    assert "\n      _attachProjectQuickCreateButton(chip,p);" not in src
+    assert "if(window._projectQuickCreate) _attachProjectQuickCreateButton(chip,p);" not in src
+    assert "function _attachProjectQuickCreateButton(" in src
 
 
 def test_project_quick_create_styles_exist_and_are_discrete_to_pointer_layouts():

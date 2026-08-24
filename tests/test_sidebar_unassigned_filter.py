@@ -1,24 +1,9 @@
-"""Regression tests for the sidebar "Unassigned" project-filter chip.
+"""Regression tests for the sidebar workspace filter.
 
-Spliced from contributor PRs #1497 (Thanatos-Z) and #1513 (AlexeyDsov), which
-both added the ability to filter the sidebar to sessions with no project_id
-assigned. Lands here as a focused PR with the best of both:
-
-- #1497's `NO_PROJECT_FILTER` sentinel (single state variable, no parallel
-  boolean to keep in sync) and conditional rendering (only show the chip
-  when there ARE unassigned sessions).
-- #1497's dashed-border visual treatment to distinguish from real project
-  chips.
-- AlexeyDsov #1513's user need framing — "easy way to view sessions
-  not yet organized into projects."
-
-UI choice: label is "Unassigned" rather than #1497's "No project" or
-#1513's "None" — clearer than both ("None" is ambiguous, "No project"
-sounds like a status). Matches the conventional file-manager / task-tracker
-mental model: "things not yet assigned to a category."
-
-These tests pin the feature contract so a future refactor can't silently
-break the chip.
+The old project filter (All / Unassigned / per-project chips) was replaced by a
+workspace filter: one chip per distinct workspace present in the visible session
+set, plus an "All" chip. Sessions without a workspace fall under a "No
+workspace" chip. This file pins that contract.
 """
 
 from __future__ import annotations
@@ -26,124 +11,54 @@ from __future__ import annotations
 import pathlib
 
 JS = pathlib.Path(__file__).parent.parent / "static" / "sessions.js"
-CSS = pathlib.Path(__file__).parent.parent / "static" / "style.css"
 
 
 def _js() -> str:
     return JS.read_text(encoding="utf-8")
 
 
-def _css() -> str:
-    return CSS.read_text(encoding="utf-8")
-
-
-def test_no_project_filter_sentinel_declared():
-    """A stable sentinel constant identifies the "no project" filter state.
-
-    Using a sentinel on the existing `_activeProject` variable (rather than
-    a parallel `_showNoneProject` boolean) keeps the filter state to one
-    place — no two-state-machine ambiguity, no risk of "All" + "Unassigned"
-    both appearing active.
-    """
+def test_workspace_filter_state_declared():
     js = _js()
-    assert "const NO_PROJECT_FILTER = '__none__';" in js, (
-        "static/sessions.js must declare a NO_PROJECT_FILTER sentinel for "
-        "the unassigned-sessions filter state"
-    )
+    assert "let _activeWorkspaceFilter = null;" in js
+    assert "function _setActiveWorkspaceFilter(ws)" in js
 
 
-def test_unassigned_chip_filter_logic():
-    """The render function must filter to !s.project_id when the sentinel is active."""
+def test_workspace_filter_predicate_partition():
     js = _js()
-    assert "_activeProject===NO_PROJECT_FILTER" in js, (
-        "renderSessionListFromCache must branch on the NO_PROJECT_FILTER sentinel"
-    )
-    assert "if(_activeProject===NO_PROJECT_FILTER){" in js, (
-        "The Unassigned filter must select sessions without a project_id"
-    )
-    assert "if(s.project_id) continue;" in js, (
-        "The Unassigned filter must skip sessions with a project_id"
+    assert (
+        "if(_activeWorkspaceFilter!==null && String(s.workspace||'')!==_activeWorkspaceFilter) continue;"
+        in js
     )
 
 
-def test_unassigned_chip_only_shown_when_relevant():
-    """The Unassigned chip should only render when there are unassigned sessions.
-
-    In the common case where every session is already organized, hiding the
-    chip keeps the project-bar uncluttered. The conditional also keeps the
-    project-bar from rendering at all when there are NO projects AND NO
-    unassigned sessions (e.g. brand-new install with one organized session
-    — though that's vanishingly rare).
-    """
+def test_workspace_filter_predicate_reference_rows():
     js = _js()
-    assert "const hasUnprojected=profileFiltered.some(s=>!s.project_id);" in js, (
-        "The render function must compute whether unassigned sessions exist"
-    )
-    assert "if(_allProjects.length>0||hasUnprojected){" in js, (
-        "The project-bar must render when EITHER there are real projects OR "
-        "there are unassigned sessions to filter to"
-    )
-    assert "if(hasUnprojected){" in js, (
-        "The Unassigned chip must be conditionally rendered on hasUnprojected"
+    assert (
+        "if(_activeWorkspaceFilter!==null && String(s.workspace||'')!==_activeWorkspaceFilter) return false;"
+        in js
     )
 
 
-def test_unassigned_chip_label_and_handler():
-    """The chip label should be 'Unassigned' and clicking it should set the sentinel."""
+def test_workspace_filter_chips_render():
     js = _js()
-    assert "noneChip.textContent='Unassigned';" in js, (
-        "The Unassigned chip must display the label 'Unassigned'"
-    )
-    assert "_setActiveProjectFilter(NO_PROJECT_FILTER)" in js, (
-        "Clicking the Unassigned chip must route through the helper that sets "
-        "the sentinel and refreshes the payload"
-    )
-    # Active-state contract — the chip must reflect when it's the active filter.
-    assert "_activeProject===NO_PROJECT_FILTER?' active':''" in js, (
-        "The Unassigned chip must apply the .active class when the filter is the "
-        "current state"
-    )
+    assert "const wsCounts=new Map();" in js
+    assert "allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};" in js
+    assert "chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};" in js
 
 
-def test_unassigned_chip_visual_treatment():
-    """A dashed border distinguishes the Unassigned chip from real project chips."""
-    css = _css()
-    assert ".project-chip.no-project{border-style:dashed;}" in css, (
-        "The Unassigned chip must have a dashed border to read as a meta-filter "
-        "rather than a real project"
-    )
+def test_workspace_group_label_helper():
     js = _js()
-    assert "noneChip.className='project-chip no-project" in js, (
-        "The Unassigned chip must have the .no-project class for the dashed-border styling"
-    )
+    assert "function _sessionWorkspaceLabel(session)" in js
 
 
-def test_empty_state_message_for_unassigned_filter():
-    """When the Unassigned filter is active and no sessions match, the empty-state
-    message should be specific to that filter rather than generic project text."""
+def test_workspace_grouping_replaces_date_bucketing():
     js = _js()
-    assert "'No unassigned sessions.'" in js, (
-        "Empty-state copy must be specific when the Unassigned filter is active"
-    )
-    assert "_activeProject===NO_PROJECT_FILTER?'No unassigned sessions.':'No sessions in this project yet.'" in js, (
-        "Empty-state copy must branch on the active filter"
-    )
+    assert "const unpinnedByWorkspace=[...unpinned].sort((a,b)=>" in js
+    assert "const label=_sessionWorkspaceLabel(s);" in js
 
 
-def test_all_chip_clear_clears_unassigned_filter_too():
-    """Clicking 'All' must reset the filter unconditionally — including when
-    the Unassigned filter is currently active.
-
-    Using a sentinel value on `_activeProject` (rather than a parallel
-    `_showNoneProject` boolean) makes this automatic: there's only one
-    variable to clear, and 'All' already sets `_activeProject = null`.
-    A regression where 'All' didn't reset the unassigned state would
-    only happen if someone migrated to a parallel boolean.
-    """
+def test_project_filter_chips_removed():
     js = _js()
-    # Find the "All" chip handler. It must clear _activeProject to null and
-    # NOT preserve any unassigned-flag state.
-    assert "allChip.onclick=()=>{_setActiveProjectFilter(null);};" in js, (
-        "The All chip handler must route through the helper that clears "
-        "_activeProject and refreshes the filtered payload."
-    )
+    # The old project filter render site is gone.
+    assert "const hasUnprojected=profileFiltered.some(s=>!s.project_id);" not in js
+    assert "noneChip.textContent='Unassigned';" not in js

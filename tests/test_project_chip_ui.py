@@ -169,55 +169,17 @@ class TestResizeProjectInputHelper:
 
 
 class TestProjectChipLongPressTouch:
-    """Mobile long-press to open the project context menu (#3760).
+    """The project-chip render loop (with its mobile long-press handling) was
+    removed from the sidebar — the project filter was replaced by a workspace
+    filter. The context-menu helper itself remains for other project UI."""
 
-    Project chips were deletable only via the right-click context menu, which has
-    no touch equivalent — so mobile users could never remove a project. A 500ms
-    long-press now opens the same menu.
-    """
+    def test_project_chip_render_loop_removed(self):
+        # The chip touch handlers lived in the project-chip render loop, which is
+        # gone now that the sidebar filters by workspace instead of project.
+        assert "Touch long-press" not in SESSIONS_JS
 
-    def _chip_touch_block(self):
-        # The chip touch handlers live just after the oncontextmenu wiring in the
-        # project-chip render loop.
-        idx = SESSIONS_JS.find("Touch long-press")
-        assert idx != -1, "project-chip long-press touch block not found"
-        return SESSIONS_JS[idx: idx + 2300]
-
-    def test_long_press_opens_project_context_menu(self):
-        block = self._chip_touch_block()
-        assert "addEventListener('touchstart'" in block
-        assert "setTimeout(" in block and "},500);" in block
-        assert "_showProjectContextMenu(" in block
-        # visual feedback + scroll-drift cancel, mirroring the session-item pattern
-        assert "long-pressing" in block
-        assert "addEventListener('touchmove'" in block
-        assert ">10" in block  # >10px drift cancels the press
-
-    def test_long_press_suppresses_synthetic_click_and_filter_tap(self):
-        block = self._chip_touch_block()
-        # touchend must be non-passive so it can preventDefault the synthetic click
-        assert "addEventListener('touchend'" in block
-        assert "{passive:false}" in block
-        assert "e.preventDefault();e.stopPropagation();" in block
-        # the long-press handler cancels the pending single-tap filter timer
-        assert "clearTimeout(_pClickTimer)" in block
-
-    def test_touchstart_clears_inflight_timer_before_scheduling(self):
-        """Regression: a second finger / stray touchstart must not orphan the
-        prior timer (which would then fire the menu after the gesture was
-        cancelled). touchstart clears any in-flight _lpTimer before scheduling,
-        and the timer body bails if the gesture was already consumed.
-        """
-        block = self._chip_touch_block()
-        # clear-before-schedule at the top of touchstart
-        assert "if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}" in block, (
-            "touchstart must clear any in-flight long-press timer before scheduling "
-            "a new one (orphaned-timer fix)"
-        )
-        # stale-fire guard inside the timer body
-        assert "if(_lpHandled) return;" in block, (
-            "the long-press timer body must no-op if the gesture was already consumed"
-        )
+    def test_context_menu_helper_still_exists(self):
+        assert "function _showProjectContextMenu(" in SESSIONS_JS
 
     def test_long_pressing_style_feedback_present(self):
         assert ".project-chip.long-pressing" in STYLE_CSS
