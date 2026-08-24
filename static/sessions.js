@@ -2378,6 +2378,14 @@ async function loadSession(sid){
     _restoreComposerDraft(_draft, sid, {preserveActiveInput:!!opts.preserveActiveInput || (currentSid===sid&&forceReload)});
   }
 
+  // Focus the composer after a real session navigation so the user can type
+  // immediately (matches the boot-page autofocus). Same-session refreshes are
+  // background/external reconciles and must not steal focus from wherever the
+  // user is currently working.
+  if (currentSid !== sid && typeof _focusComposerOnChatPage === 'function') {
+    _focusComposerOnChatPage();
+  }
+
   // Clear the in-flight session marker now that this load has completed (#1060).
   if (_isCurrentLoad()) _loadingSessionId = null;
 
