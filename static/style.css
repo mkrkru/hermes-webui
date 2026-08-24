@@ -3114,6 +3114,10 @@
      where the user can click the rail should also be a width where the collapse
      rule applies. :not(.mobile-open) excludes the slide-in overlay below 641px. */
   @media(min-width:641px){
+    /* Desktop/tablet: the left rail is the primary nav, so the top titlebar is
+       redundant and hidden. Below 641px the rail is hidden and the titlebar
+       hamburger is the only way to open the sidebar drawer, so it stays. */
+    .app-titlebar{display:none;}
     .layout.sidebar-collapsed .sidebar:not(.mobile-open){width:0 !important;min-width:0;opacity:0;transform:translateX(-14px);border-right-color:transparent;pointer-events:none;overflow:hidden;}
     .layout.sidebar-collapsed .sidebar .resize-handle{display:none;}
     /* Flash prevention: an inline <script> in index.html sets this dataset on

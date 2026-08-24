@@ -2375,6 +2375,81 @@ function _hasFinePointerCoexisting(){
 function _isNumpadEnter(e){
   return e.key==='Enter'&&(e.code==='NumpadEnter'||e.location===KeyboardEvent.DOM_KEY_LOCATION_NUMPAD);
 }
+// Prompt history navigation: ArrowUp/ArrowDown in the focused composer recall
+// previously sent prompts (terminal-style). Newest entry is LAST in the array.
+// _promptHistoryIndex is null while the user is on their own (unsent) draft;
+// navigating stashes that draft in _promptHistoryDraft so ArrowDown can restore
+// it after walking back past the newest entry. Any real keystroke resets the
+// navigation so an edited recall is treated as a fresh draft, not history.
+const _PROMPT_HISTORY_KEY='hermes-webui-prompt-history';
+const _PROMPT_HISTORY_MAX=100;
+let _promptHistory=[];
+let _promptHistoryIndex=null;
+let _promptHistoryDraft='';
+try{
+  const _ph=localStorage.getItem(_PROMPT_HISTORY_KEY);
+  if(_ph){
+    const _parsed=JSON.parse(_ph);
+    if(Array.isArray(_parsed)){
+      _promptHistory=_parsed.filter(x=>typeof x==='string'&&x.trim()).slice(-_PROMPT_HISTORY_MAX);
+    }
+  }
+}catch(_){_promptHistory=[];}
+function _persistPromptHistory(){
+  try{localStorage.setItem(_PROMPT_HISTORY_KEY,JSON.stringify(_promptHistory));}catch(_){}
+}
+function _recordPromptHistory(text){
+  if(typeof text!=='string')return;
+  const t=text.trim();
+  if(!t)return;
+  _promptHistoryIndex=null;
+  // Ignore consecutive duplicates (HISTCONTROL=ignoredups-style).
+  if(_promptHistory.length&&_promptHistory[_promptHistory.length-1]===t)return;
+  _promptHistory.push(t);
+  if(_promptHistory.length>_PROMPT_HISTORY_MAX)_promptHistory.shift();
+  _persistPromptHistory();
+}
+function _isCaretOnFirstLine(el){
+  const pos=el&&typeof el.selectionStart==='number'?el.selectionStart:0;
+  return String(el&&el.value||'').slice(0,pos).indexOf('\n')===-1;
+}
+function _isCaretOnLastLine(el){
+  const v=String(el&&el.value||'');
+  const pos=el&&typeof el.selectionEnd==='number'?el.selectionEnd:v.length;
+  return v.slice(pos).indexOf('\n')===-1;
+}
+function _applyPromptHistoryValue(v){
+  const input=$('msg');
+  if(!input)return;
+  input.value=v;
+  if(typeof input.setSelectionRange==='function')input.setSelectionRange(v.length,v.length);
+  if(typeof autoResize==='function')autoResize();
+}
+function _navigatePromptHistory(dir){
+  if(!_promptHistory.length)return;
+  if(_promptHistoryIndex===null){
+    _promptHistoryDraft=$('msg')?$('msg').value:'';
+    if(dir<0){
+      _promptHistoryIndex=_promptHistory.length-1;
+      _applyPromptHistoryValue(_promptHistory[_promptHistoryIndex]);
+    }
+    // dir>0 from a fresh draft: nothing newer to move into — stay on the draft.
+    return;
+  }
+  if(dir<0){
+    if(_promptHistoryIndex>0)_promptHistoryIndex--;
+    _applyPromptHistoryValue(_promptHistory[_promptHistoryIndex]);
+  }else{
+    if(_promptHistoryIndex<_promptHistory.length-1){
+      _promptHistoryIndex++;
+      _applyPromptHistoryValue(_promptHistory[_promptHistoryIndex]);
+    }else{
+      _promptHistoryIndex=null;
+      _applyPromptHistoryValue(_promptHistoryDraft);
+    }
+  }
+}
+(()=>{const _c=$('msg');if(!_c)return;_c.addEventListener('input',()=>{_promptHistoryIndex=null;});})();
 $('msg').addEventListener('keydown',e=>{
   // Autocomplete navigation when dropdown is open
   const dd=$('cmdDropdown');
@@ -2390,9 +2465,28 @@ $('msg').addEventListener('keydown',e=>{
         return;
       }
       e.preventDefault();
+      // If the user typed a complete, registered command name (e.g. /new), run
+      // it directly instead of forcing a dropdown pick. Unknown/partial commands
+      // and sub-arg selection keep the existing autocomplete flow.
+      const _cmdText=String($('msg').value||'').trim();
+      if(typeof _slashCommandNameIsExact==='function'&&_slashCommandNameIsExact(_cmdText)){
+        hideCmdDropdown();
+        send();
+        return;
+      }
       selectCmdDropdownItem();
       return;
     }
+  }
+  // Prompt history navigation (terminal-style ↑/↓) when no dropdown is open.
+  // Only hijack the arrows while the caret sits on the first (↑) or last (↓)
+  // line so multi-line editing keeps native cursor movement; skip during IME
+  // composition where arrows move the candidate list, not the caret.
+  if(e.key==='ArrowUp'&&!e.shiftKey&&!e.isComposing&&!_imeComposing){
+    if(_isCaretOnFirstLine($('msg'))){e.preventDefault();_navigatePromptHistory(-1);return;}
+  }
+  if(e.key==='ArrowDown'&&!e.shiftKey&&!e.isComposing&&!_imeComposing){
+    if(_isCaretOnLastLine($('msg'))){e.preventDefault();_navigatePromptHistory(1);return;}
   }
   // Send key: respect user preference.
   // On touch-primary devices (coarse pointer, no fine pointer co-existing),

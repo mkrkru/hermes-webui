@@ -1626,6 +1626,7 @@ async function send(){
   // signature from here down; no code path below re-reads $('msg').value on the
   // happy path.
   const _submittedDraftTextForClear=$('msg').value||'';
+  if(typeof _recordPromptHistory==='function')_recordPromptHistory(_submittedDraftTextForClear);
   $('msg').value='';autoResize();
 
   // #5912 gate CORE fix: snapshot the pending files that belong to THIS send

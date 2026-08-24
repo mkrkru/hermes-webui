@@ -496,6 +496,20 @@ function _parseSlashAutocomplete(text){
   return {kind:'subargs', command:{name:cmdName, desc:subArgSource.desc, subArgs:subArgSource.subArgs}, query:argText.toLowerCase(), rawQuery:argText};
 }
 
+// True when `text` is a complete, registered slash command NAME the user typed
+// (e.g. "/new") rather than a partial prefix ("/ne") or an unknown command.
+// Enter uses this to run a known command immediately instead of forcing a
+// dropdown pick. Returns false in sub-arg mode ("/model ") so the picker stays
+// usable, and false for multi-token inputs (those never open the command list).
+function _slashCommandNameIsExact(text){
+  if(typeof text!=='string')return false;
+  const parsed=_parseSlashAutocomplete(text);
+  if(!parsed||parsed.kind!=='commands')return false;
+  const q=String(parsed.query||'').toLowerCase();
+  if(!q)return false;
+  return getMatchingCommands(q).some(c=>String(c&&c.name||'').toLowerCase()===q);
+}
+
 async function getSlashAutocompleteMatches(text){
   const parsed=_parseSlashAutocomplete(text);
   if(!parsed) return [];
@@ -1413,9 +1427,8 @@ function _steerFailureMessageKey(fallback) {
 function _showSteerIndicator(text){
   const inner=document.getElementById('msgInner');
   if(!inner) return;
-  // Remove any existing steer indicator
-  const old=inner.querySelector('.steer-indicator');
-  if(old) old.remove();
+  // Append a new indicator instead of replacing the previous one, so every
+  // steer sent during the run stays visible (previously only the last showed).
   const el=document.createElement('div');
   el.className='steer-indicator';
   const badge=document.createElement('span');
@@ -1686,6 +1699,11 @@ async function _trySteer(msg, explicitSteer){
       const _queued=new Set(pendingFilesSnapshot);
       const _remaining=S.pendingFiles.filter(f=>!_queued.has(f));
       if(_remaining.length!==S.pendingFiles.length){S.pendingFiles=_remaining;if(typeof renderTray==='function')renderTray();}
+    }
+    // Surface the queued (not-yet-delivered) steer in the chat too, so every
+    // steer — delivered or still waiting — is visible, not just the last one.
+    if(_steerOwnerIsCurrent(ownerSid)){
+      _showSteerIndicator(_steerIndicatorText(originalMsg,pendingFilesSnapshot));
     }
     showToast(t('steer_leftover_queued'),3000);
     return true;
