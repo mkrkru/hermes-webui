@@ -7719,7 +7719,11 @@ def _load_cli_sessions_uncached(
         cli_sessions.append({
             'session_id': sid,
             'title': _display_title,
-            'workspace': _cli_workspace(),
+            # CLI/agent sessions live in Hermes' own state.db with their own
+            # directory layout — they must NOT be bound to the active WebUI
+            # workspace (get_last_workspace()). Empty workspace keeps the CLI
+            # sidebar view flat/unbound.
+            'workspace': '',
             'model': row['model'] or None,
             'message_count': row['message_count'] or row['actual_message_count'] or 0,
             'created_at': row['started_at'],

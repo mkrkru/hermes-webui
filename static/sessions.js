@@ -2633,6 +2633,9 @@ function _setSessionSourceFilter(filter) {
   if (_sessionSourceFilter === next) return;
   _sessionSourceFilter = next;
   _activeProject = null;
+  // CLI sessions are not workspace-bound, so a stale workspace filter from the
+  // WebUI view must not hide them once we switch to the CLI bucket.
+  if (next === 'cli') _activeWorkspaceFilter = null;
   _selectedSessions.clear();
   _sessionSelectMode = false;
   try { localStorage.setItem('hermes-session-source-filter', next); } catch (_e) {}
@@ -7823,33 +7826,37 @@ function renderSessionListFromCache(){
     list.appendChild(sourceTabs);
   }
   // Workspace filter bar — one chip per distinct workspace in the visible set.
-  const wsCounts=new Map();
-  for(const s of profileFiltered){
-    const ws=(s&&s.workspace)?String(s.workspace):'';
-    wsCounts.set(ws,(wsCounts.get(ws)||0)+1);
-  }
-  if(wsCounts.size>0){
-    const bar=document.createElement('div');
-    bar.className='project-bar';
-    const allChip=document.createElement('span');
-    allChip.className='project-chip'+(_activeWorkspaceFilter===null?' active':'');
-    allChip.textContent='All';
-    allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};
-    bar.appendChild(allChip);
-    const wsEntries=[...wsCounts.entries()].sort((a,b)=>{
-      const la=(_sessionWorkspaceLabel({workspace:a[0]})||'').toLowerCase();
-      const lb=(_sessionWorkspaceLabel({workspace:b[0]})||'').toLowerCase();
-      return la<lb?-1:1;
-    });
-    for(const [wsPath] of wsEntries){
-      const chip=document.createElement('span');
-      chip.className='project-chip'+(_activeWorkspaceFilter===wsPath?' active':'');
-      chip.textContent=_sessionWorkspaceLabel({workspace:wsPath});
-      if(wsPath) chip.title=wsPath;
-      chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};
-      bar.appendChild(chip);
+  // CLI sessions are not workspace-bound, so this bar only renders in the
+  // WebUI view (where sessions carry a real workspace).
+  if(!isCliView){
+    const wsCounts=new Map();
+    for(const s of profileFiltered){
+      const ws=(s&&s.workspace)?String(s.workspace):'';
+      wsCounts.set(ws,(wsCounts.get(ws)||0)+1);
     }
-    list.appendChild(bar);
+    if(wsCounts.size>0){
+      const bar=document.createElement('div');
+      bar.className='project-bar';
+      const allChip=document.createElement('span');
+      allChip.className='project-chip'+(_activeWorkspaceFilter===null?' active':'');
+      allChip.textContent='All';
+      allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};
+      bar.appendChild(allChip);
+      const wsEntries=[...wsCounts.entries()].sort((a,b)=>{
+        const la=(_sessionWorkspaceLabel({workspace:a[0]})||'').toLowerCase();
+        const lb=(_sessionWorkspaceLabel({workspace:b[0]})||'').toLowerCase();
+        return la<lb?-1:1;
+      });
+      for(const [wsPath] of wsEntries){
+        const chip=document.createElement('span');
+        chip.className='project-chip'+(_activeWorkspaceFilter===wsPath?' active':'');
+        chip.textContent=_sessionWorkspaceLabel({workspace:wsPath});
+        if(wsPath) chip.title=wsPath;
+        chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};
+        bar.appendChild(chip);
+      }
+      list.appendChild(bar);
+    }
   }
   // Profile filter toggle (show sessions from other profiles).
   // Cross-profile rows live SERVER-SIDE behind ?all_profiles=1, so the toggle
@@ -7908,22 +7915,30 @@ function renderSessionListFromCache(){
   // Group sessions by workspace (alphabetical by friendly name), then by
   // recency within each workspace. Replaces the old date bucketing.
   const groups=[];
-  let curLabel=null,curItems=[];
   if(pinned.length) groups.push({label:'\u2605 Pinned',items:pinned,isPinned:true});
-  const unpinnedByWorkspace=[...unpinned].sort((a,b)=>{
-    const la=(_sessionWorkspaceLabel(a)||'').toLowerCase();
-    const lb=(_sessionWorkspaceLabel(b)||'').toLowerCase();
-    if(la!==lb) return la<lb?-1:1;
-    return _sessionSidebarSortCompare(a,b);
-  });
-  for(const s of unpinnedByWorkspace){
-    const label=_sessionWorkspaceLabel(s);
-    if(label!==curLabel){
-      if(curItems.length) groups.push({label:curLabel,items:curItems});
-      curLabel=label;curItems=[s];
-    } else { curItems.push(s); }
+  if(isCliView){
+    // CLI sessions are not bound to a workspace: render them as one flat,
+    // continuous list (recency order) instead of grouping by workspace.
+    if(unpinned.length) groups.push({label:'',items:unpinned,isFlat:true});
+  }else{
+    // Group WebUI sessions by workspace (alphabetical by friendly name), then
+    // by recency within each workspace. Replaces the old date bucketing.
+    let curLabel=null,curItems=[];
+    const unpinnedByWorkspace=[...unpinned].sort((a,b)=>{
+      const la=(_sessionWorkspaceLabel(a)||'').toLowerCase();
+      const lb=(_sessionWorkspaceLabel(b)||'').toLowerCase();
+      if(la!==lb) return la<lb?-1:1;
+      return _sessionSidebarSortCompare(a,b);
+    });
+    for(const s of unpinnedByWorkspace){
+      const label=_sessionWorkspaceLabel(s);
+      if(label!==curLabel){
+        if(curItems.length) groups.push({label:curLabel,items:curItems});
+        curLabel=label;curItems=[s];
+      } else { curItems.push(s); }
+    }
+    if(curItems.length) groups.push({label:curLabel,items:curItems});
   }
-  if(curItems.length) groups.push({label:curLabel,items:curItems});
   const flatSessionRows=[];
   for(const g of groups){
     if(_groupCollapsed[g.label]) continue;
@@ -7987,27 +8002,30 @@ function renderSessionListFromCache(){
   for(const g of groups){
     const wrapper=document.createElement('div');
     wrapper.className='session-date-group';
-    const hdr=document.createElement('div');
-    hdr.className='session-date-header'+(g.isPinned?' pinned':'');
-    const caret=document.createElement('span');
-    caret.className='session-date-caret';
-    caret.textContent='\u25BE'; // down when expanded; rotated right when collapsed
-    const label=document.createElement('span');
-    label.textContent=g.label;
-    hdr.appendChild(caret);hdr.appendChild(label);
     const body=document.createElement('div');
     body.className='session-date-body';
-    const isGroupCollapsed=Boolean(_groupCollapsed[g.label]);
-    if(isGroupCollapsed){body.style.display='none';caret.classList.add('collapsed');}
-    hdr.onclick=()=>{
-      const isCollapsed=body.style.display==='none';
-      body.style.display=isCollapsed?'':'none';
-      caret.classList.toggle('collapsed',!isCollapsed);
-      _groupCollapsed[g.label]=!isCollapsed;
-      _saveCollapsed();
-      renderSessionListFromCache();
-    };
-    wrapper.appendChild(hdr);
+    let isGroupCollapsed=false;
+    if(!g.isFlat){
+      const hdr=document.createElement('div');
+      hdr.className='session-date-header'+(g.isPinned?' pinned':'');
+      const caret=document.createElement('span');
+      caret.className='session-date-caret';
+      caret.textContent='\u25BE'; // down when expanded; rotated right when collapsed
+      const label=document.createElement('span');
+      label.textContent=g.label;
+      hdr.appendChild(caret);hdr.appendChild(label);
+      isGroupCollapsed=Boolean(_groupCollapsed[g.label]);
+      if(isGroupCollapsed){body.style.display='none';caret.classList.add('collapsed');}
+      hdr.onclick=()=>{
+        const isCollapsed=body.style.display==='none';
+        body.style.display=isCollapsed?'':'none';
+        caret.classList.toggle('collapsed',!isCollapsed);
+        _groupCollapsed[g.label]=!isCollapsed;
+        _saveCollapsed();
+        renderSessionListFromCache();
+      };
+      wrapper.appendChild(hdr);
+    }
     let groupTopPad=0;
     let groupBottomPad=0;
     for(const s of g.items){
