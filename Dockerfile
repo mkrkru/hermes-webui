@@ -110,10 +110,10 @@ WORKDIR /apptoo
 # UID/GID alignment and filesystem preparation, then execs the server as this user.
 RUN groupadd -g 1024 hermeswebui \
     && useradd -u 1024 -d /home/hermeswebui -g hermeswebui -G users -s /bin/bash -m hermeswebui \
-    && mkdir -p /app /uv_cache /workspace \
-    && chown -R hermeswebui:hermeswebui /home/hermeswebui /app /uv_cache /workspace \
+    && mkdir -p /app /uv_cache /workspace /code \
+    && chown -R hermeswebui:hermeswebui /home/hermeswebui /app /uv_cache /workspace /code \
     && chmod 0755 /home/hermeswebui \
-    && chmod 1777 /app /uv_cache /workspace
+    && chmod 1777 /app /uv_cache /workspace /code
 
 COPY --chmod=555 docker_init.bash /hermeswebui_init.bash
 
