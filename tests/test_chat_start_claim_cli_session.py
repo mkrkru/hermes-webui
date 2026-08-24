@@ -479,7 +479,7 @@ def test_helper_materialises_state_db_only_session(
     assert sess.session_id == SID
     assert sess.title == "Codex honcho integration"
     assert sess.model == "MiniMax-M3"
-    assert Path(sess.workspace).name == "root"  # from CLI metadata
+    assert sess.workspace == ""  # CLI sessions stay workspace-unbound
     assert len(sess.messages) == 3
     assert sess.messages[0]["role"] == "user"
     # Greptile #4911 P1: created_at must be populated from state.db
@@ -522,23 +522,20 @@ def test_helper_materialises_state_db_only_session(
     assert sess.read_only is False
 
 
-def test_helper_uses_get_last_workspace_when_cwd_missing(
+def test_helper_leaves_workspace_unbound_when_cwd_missing(
     routes_module, tmp_path, monkeypatch, isolated_state_db
 ):
-    """Falls back to get_last_workspace() when neither state.db cwd nor
-    CLI metadata carries one — keeps _start_run from tripping on a missing
-    workspace."""
+    """CLI/agent sessions stay workspace-unbound: even when the active WebUI
+    workspace is set, materializing a CLI session must NOT attach it. The run
+    cwd is resolved separately at turn time (see
+    _resolve_chat_workspace_with_recovery)."""
     SID = "noworkspace_sid"
     _make_state_db(isolated_state_db["db"], SID, message_count=1, cwd="")
-    # No CLI metadata; state.db cwd is empty; fall through to the helper's
-    # last-resort workspace lookup.
+    # No CLI metadata; state.db cwd is empty.
     monkeypatch.setattr(routes_module, "_lookup_cli_session_metadata",
                         lambda _sid: {})
     fallback_workspace = tmp_path / "fallback-ws"
     fallback_workspace.mkdir()
-    # The helper does ``from api.workspace import get_last_workspace`` inside
-    # the function body, so the local name is re-resolved at every call.
-    # Patch the source-of-truth attribute on api.workspace.
     import api.workspace as _workspace_mod
     monkeypatch.setattr(_workspace_mod, "get_last_workspace",
                         lambda: str(fallback_workspace))
@@ -546,7 +543,9 @@ def test_helper_uses_get_last_workspace_when_cwd_missing(
     sess, reason = routes_module._claim_or_synthesize_cli_session(SID)
     assert reason == "materialized"
     assert sess is not None
-    assert Path(sess.workspace).resolve() == fallback_workspace.resolve()
+    assert sess.workspace == "", (
+        "materialized CLI sessions must stay workspace-unbound"
+    )
 
 
 # ---------------------------------------------------------------------------

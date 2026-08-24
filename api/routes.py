@@ -8264,24 +8264,15 @@ def _claim_or_synthesize_cli_session(sid: str, cli_meta: dict = None):
     loaded read-only AND continued writeable from the WebUI.
     """
     def build_workspace(sid, cli_meta):
-        """Coalesce workspace with sane fallbacks so _start_run doesn't
-        trip on a missing field. state.db's cwd is the canonical workspace for
-        agent sessions; CLI metadata is the fallback (handles Telegram/etc).
+        """CLI/agent sessions are not bound to a WebUI workspace.
+
+        They live in Hermes' own state.db with their own directory layout, so
+        materializing one must NOT attach the active WebUI workspace (or a
+        state.db cwd) to it. The run cwd is resolved at turn time by
+        ``_resolve_chat_workspace_with_recovery`` without persisting a binding,
+        so the session stays unbound across turns and workspace switches.
         """
-        workspace = (cli_meta or {}).get("workspace") or (cli_meta or {}).get("cwd")
-        if not workspace:
-            try:
-                from api.workspace import get_last_workspace
-                workspace = get_last_workspace()
-            except Exception:
-                workspace = None
-        if not workspace:
-            try:
-                from api.models import DEFAULT_WORKSPACE
-                workspace = DEFAULT_WORKSPACE
-            except Exception:
-                workspace = "/"
-        return workspace
+        return ""
 
     def build_session(sid, cli_meta, msgs, read_only_flag, is_cli_flag=True):
         return Session(
@@ -8388,8 +8379,8 @@ def _claim_or_synthesize_cli_session(sid: str, cli_meta: dict = None):
             cli_meta["title"] = state_db_row["title"]
         if not cli_meta.get("model") and state_db_row.get("model"):
             cli_meta["model"] = state_db_row["model"]
-        if not cli_meta.get("workspace") and state_db_row.get("cwd"):
-            cli_meta["workspace"] = state_db_row["cwd"]
+        # state.db cwd is deliberately NOT mapped into cli_meta["workspace"]:
+        # CLI/agent sessions stay workspace-unbound (see build_workspace).
         # Map state.db timestamps to created_at/updated_at on the
         # synthesized Session.  Without this, the first POST writes
         # epoch (0) timestamps into the permanent sidecar and the
@@ -15834,8 +15825,13 @@ def handle_post(handler, parsed) -> bool:
             new_ws = str(resolve_trusted_workspace(body.get("workspace", s.workspace)))
         except ValueError as e:
             return bad(handler, str(e))
+        is_cli = bool(getattr(s, "is_cli_session", False))
         with _get_session_agent_lock(body["session_id"]):
-            s.workspace = new_ws
+            # CLI/agent sessions are not workspace-bound: a workspace switch
+            # still updates the global active workspace (set_last_workspace
+            # below), but must never re-bind the session's own workspace.
+            if not is_cli:
+                s.workspace = new_ws
             if "model" in body or "model_provider" in body:
                 model, provider = _session_model_state_from_request(
                     body.get("model", s.model),
@@ -15859,7 +15855,7 @@ def handle_post(handler, parsed) -> bool:
 
                     _evict_session_agent(body["session_id"])
             s.save()
-        if str(old_ws or "") != str(new_ws or ""):
+        if not is_cli and str(old_ws or "") != str(new_ws or ""):
             try:
                 from api.terminal import close_terminal
                 close_terminal(body["session_id"])
@@ -24350,6 +24346,12 @@ def _resolve_chat_workspace_with_recovery(s, requested_workspace) -> str:
     if explicit:
         return str(resolve_trusted_workspace(requested_workspace))
     stored_workspace = getattr(s, "workspace", None)
+    if not stored_workspace and getattr(s, "is_cli_session", False):
+        # CLI/agent sessions are not workspace-bound. Resolve a run cwd from
+        # the active workspace but do NOT persist a binding back into the
+        # sidecar, so the session stays unbound across turns and workspace
+        # switches.
+        return str(resolve_trusted_workspace(get_last_workspace()))
     workspace, recovered = resolve_implicit_workspace_with_recovery(
         stored_workspace,
         get_last_workspace,

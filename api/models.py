@@ -1245,7 +1245,9 @@ class Session:
                  **kwargs):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self.title = title
-        self.workspace = str(Path(workspace).expanduser().resolve())
+        # Empty/None workspace means "unbound" (e.g. CLI/agent sessions) and must
+        # stay empty — Path('').resolve() would silently coerce it to the cwd.
+        self.workspace = str(Path(workspace).expanduser().resolve()) if workspace else ""
         # #6672: immutable snapshot of the workspace at session creation time.
         # s.workspace is updated on every turn when the user switches workspaces
         # mid-session via the WebUI header dropdown; interpolating the live
@@ -6720,7 +6722,11 @@ def import_cli_session(
     s = Session(
         session_id=session_id,
         title=title,
-        workspace=get_last_workspace(),
+        # CLI/agent sessions are not bound to a WebUI workspace: they live in
+        # Hermes' own state.db with their own directory layout. The run cwd is
+        # resolved at turn time without persisting a binding, so keep the
+        # sidecar unbound.
+        workspace='',
         model=model,
         messages=messages,
         profile=profile,

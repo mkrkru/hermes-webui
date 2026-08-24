@@ -101,3 +101,58 @@ def test_cli_sessions_render_flat_in_sidebar():
     )
     assert "if(!isCliView){" in js
     assert "if(!g.isFlat){" in js
+
+
+def test_resolve_chat_workspace_cli_session_no_persist(tmp_path, monkeypatch):
+    """Continuing a workspace-unbound CLI session resolves a run cwd from the
+    active workspace WITHOUT persisting a binding back into the sidecar."""
+    routes = pytest.importorskip("api.routes")
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    s = SimpleNamespace(workspace="", is_cli_session=True, session_id="cli_no_persist")
+    monkeypatch.setattr(routes, "get_last_workspace", lambda: str(tmp_path))
+    # Bypass trust validation (tmp_path is outside $HOME) — this test pins the
+    # no-persist contract, not the trust-boundary check.
+    monkeypatch.setattr(
+        routes, "resolve_trusted_workspace", lambda p: Path(str(p)).resolve()
+    )
+    persist_calls = {"n": 0}
+
+    def _boom(*_a, **_k):
+        persist_calls["n"] += 1
+        raise AssertionError("must not persist a workspace binding for CLI sessions")
+
+    monkeypatch.setattr(routes, "persist_recovered_workspace_binding", _boom)
+
+    result = routes._resolve_chat_workspace_with_recovery(s, None)
+
+    assert result == str(tmp_path.resolve())
+    assert persist_calls["n"] == 0, (
+        "CLI sessions must stay unbound: no workspace binding may be persisted"
+    )
+
+
+def test_switch_to_workspace_does_not_rebind_cli_session():
+    """switchToWorkspace must not overwrite a CLI session's workspace locally
+    after the server-side global active-workspace switch."""
+    js = (
+        pathlib.Path(__file__).parent.parent / "static" / "panels.js"
+    ).read_text(encoding="utf-8")
+    assert "if(!(S.session&&S.session.is_cli_session)) S.session.workspace=path;" in js
+
+
+def test_session_update_does_not_rebind_cli_session():
+    """/api/session/update must skip the session workspace mutation for CLI
+    sessions while still updating the global active workspace."""
+    src = (
+        pathlib.Path(__file__).parent.parent / "api" / "routes.py"
+    ).read_text(encoding="utf-8")
+    start = src.index('parsed.path == "/api/session/update"')
+    nxt = src.find("if parsed.path ==", start + 1)
+    block = src[start: nxt if nxt != -1 else start + 4000]
+    assert "is_cli = bool(getattr(s, \"is_cli_session\", False))" in block
+    assert "if not is_cli:" in block
+    assert "s.workspace = new_ws" in block
+    assert "if not is_cli and str(old_ws or \"\") != str(new_ws or \"\"):" in block
+    assert "set_last_workspace(new_ws)" in block

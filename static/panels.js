@@ -6423,7 +6423,9 @@ async function switchToWorkspace(path,name){
     await api('/api/session/update',{method:'POST',body:JSON.stringify({
       session_id:S.session.session_id, workspace:path, model:S.session.model, model_provider:S.session.model_provider||null
     })});
-    S.session.workspace=path;
+    // CLI/agent sessions are not workspace-bound: the switch still updates the
+    // global active workspace server-side, but the session itself stays unbound.
+    if(!(S.session&&S.session.is_cli_session)) S.session.workspace=path;
     // Explicit workspace switch = user overriding any pending profile-switch default.
     // Clear the one-shot flag so a subsequent newSession() inherits this choice instead.
     S._profileSwitchWorkspace=null;
