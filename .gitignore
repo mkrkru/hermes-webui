@@ -73,6 +73,9 @@ graphify-out/
 
 .venv/
 
+# Git worktrees checked out locally for parallel branch work
+.worktrees/
+
 # Dev-only lint tooling (ESLint runtime-error guard) — see TESTING.md
 node_modules/
 package-lock.json
