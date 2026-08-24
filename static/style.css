@@ -5073,9 +5073,11 @@ main.main > #mainKanban,
 main.main > #mainWorkspaces,
 main.main > #mainProfiles,
 main.main > #mainInsights,
-main.main > #mainLogs{display:none;}
-main.main:not(.showing-settings):not(.showing-skills):not(.showing-memory):not(.showing-tasks):not(.showing-kanban):not(.showing-workspaces):not(.showing-profiles):not(.showing-insights):not(.showing-logs):not(.showing-plugin) > #mainChat{display:flex;}
+main.main > #mainLogs,
+main.main > #mainActivity{display:none;}
+main.main:not(.showing-settings):not(.showing-skills):not(.showing-memory):not(.showing-tasks):not(.showing-kanban):not(.showing-workspaces):not(.showing-profiles):not(.showing-insights):not(.showing-logs):not(.showing-activity):not(.showing-plugin) > #mainChat{display:flex;}
 main.main.showing-settings > #mainSettings{display:flex;overflow-y:auto;}
+main.main.showing-activity > #mainActivity{display:flex;}
 main.main.showing-skills > #mainSkills{display:flex;}
 main.main.showing-memory > #mainMemory{display:flex;}
 main.main.showing-tasks > #mainTasks{display:flex;}
@@ -7457,3 +7459,35 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 /* Settings field highlight (mirrors msg-question-highlight / _highlightQuestionRow pattern) */
 .settings-field-highlight { animation: settings-field-pulse 1.6s ease-out; }
 @keyframes settings-field-pulse { 0% { box-shadow: 0 0 0 0 var(--focus-ring); } 35% { box-shadow: 0 0 0 4px var(--focus-ring); } 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
+
+/* ── Activity panel (running-chats monitor) ─────────────────────────────── */
+.activity-main-body{flex:1;min-height:0;overflow:hidden;padding:12px;display:flex;flex-direction:column;}
+.activity-grid{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;}
+.activity-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:220px;text-align:center;color:var(--muted);padding:32px;}
+.activity-empty-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.activity-empty-sub{font-size:13px;line-height:1.55;max-width:460px;}
+.activity-card{flex:1 1 0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;}
+.activity-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-width:0;}
+.activity-card-ws{font-size:13px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.activity-card-meta{display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.activity-live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--focus-ring);animation:activityPulse 1.6s ease-out infinite;}
+@keyframes activityPulse{0%{box-shadow:0 0 0 0 var(--focus-ring);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
+.activity-card-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.activity-msg{max-width:100%;}
+.activity-msg-user .activity-md{background:var(--surface-subtle);border:1px solid var(--border);border-radius:12px;padding:8px 12px;display:inline-block;max-width:100%;}
+.activity-msg-assistant .activity-md{color:var(--text);}
+.activity-msg-other .activity-md{color:var(--muted);font-size:12px;}
+.activity-md{font-size:var(--message-body-font-size,14px);line-height:1.55;word-break:break-word;overflow-wrap:anywhere;}
+.activity-md p{margin:0 0 .5em;}
+.activity-md p:last-child{margin-bottom:0;}
+.activity-md pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:10px;overflow-x:auto;font-size:12px;color:var(--pre-text);}
+.activity-md code{font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);}
+.activity-md :not(pre)>code{background:var(--code-inline-bg);color:var(--code-text);padding:1px 5px;border-radius:4px;font-size:12px;}
+.activity-tool-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.activity-tool-chip{font-size:11px;color:var(--muted);background:var(--surface-subtle);border:1px solid var(--border);border-radius:6px;padding:1px 7px;}
+.activity-sidebar-list{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:4px;}
+.activity-sidebar-empty{padding:14px 10px;font-size:12px;color:var(--muted);text-align:center;}
+.activity-sidebar-row{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:7px 9px;background:none;border:1px solid transparent;border-radius:8px;text-align:left;cursor:pointer;color:var(--text);}
+.activity-sidebar-row:hover{background:var(--surface-subtle-hover);border-color:var(--border);}
+.activity-sidebar-ws{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.activity-sidebar-title{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}

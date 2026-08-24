@@ -42,9 +42,9 @@ let _logsSeverityFilter = 'all';
 const APP_TITLEBAR_KEYS = {
   chat: 'tab_chat', tasks: 'tab_tasks', skills: 'tab_skills',
   memory: 'tab_memory', workspaces: 'tab_workspaces',
-  profiles: 'tab_profiles', todos: 'tab_todos', insights: 'tab_insights', logs: 'tab_logs', settings: 'tab_settings',
+  profiles: 'tab_profiles', todos: 'tab_todos', insights: 'tab_insights', logs: 'tab_logs', activity: 'tab_activity', settings: 'tab_settings',
 };
-const MAIN_VIEW_PANELS = ['settings','skills','memory','tasks','kanban','workspaces','profiles','insights','logs','plugin'];
+const MAIN_VIEW_PANELS = ['settings','skills','memory','tasks','kanban','workspaces','profiles','insights','logs','activity','plugin'];
 const MAIN_VIEW_SIDEBAR_PANEL_FALLBACKS = { plugin: 'settings' };
 
 /**
@@ -420,6 +420,9 @@ async function switchPanel(name, opts = {}) {
   if (prevPanel === 'kanban' && nextPanel !== 'kanban') {
     if (typeof _kanbanStopPolling === 'function') _kanbanStopPolling();
   }
+  if (prevPanel === 'activity' && nextPanel !== 'activity') {
+    stopActivityPolling();
+  }
   _currentPanel = nextPanel;
   // Mobile drawer visibility: a rail/tab click on a phone should surface the
   // panel synchronously, NOT after the panel's async data load. If the re-open
@@ -459,6 +462,10 @@ async function switchPanel(name, opts = {}) {
   if (nextPanel === 'todos') loadTodos();
   if (nextPanel === 'insights') await loadInsights();
   if (nextPanel === 'logs') await loadLogs();
+  if (nextPanel === 'activity') {
+    startActivityPolling();
+    loadActivity();
+  }
   _syncLogsAutoRefresh();
   if (typeof _syncSystemHealthMonitorVisibility === 'function') _syncSystemHealthMonitorVisibility();
   if (nextPanel === 'settings') {
@@ -7503,7 +7510,7 @@ let _settingsPreferencesAutosaveTimer = null;
 let _settingsPreferencesAutosaveRetryPayload = null;
 
 // ── Sidebar tab visibility/order ────────────────────────────────────────────
-const _ALWAYS_VISIBLE_TABS = new Set(['chat','settings']);
+const _ALWAYS_VISIBLE_TABS = new Set(['chat','activity','settings']);
 const _HIDDEN_TABS_LS_KEY = 'hermes-webui-hidden-tabs';
 const _TAB_ORDER_LS_KEY = 'hermes-webui-tab-order';
 const _COMPOSER_CONTROL_ORDER_LS_KEY = 'hermes-webui-composer-control-order';
@@ -12980,6 +12987,268 @@ function _clearCronUnreadForJob(jobId){
   if(_cronNewJobIds.has(id)){
     _cronNewJobIds.delete(id);
     updateCronBadge();  // re-derives _cronUnreadCount from set size
+  }
+}
+
+// ── Activity panel (running-chats monitor) ──────────────────────────────────
+// Shows every session with a live stream / pending turn / running cron job,
+// stacked vertically (one card per session). Each card has a workspace-name
+// header and a live, read-only transcript tail. Polls /api/sessions for the
+// running set and /api/session (tail window) per running session every ~2s.
+// Deliberately avoids N simultaneous SSE streams (browser connection-pool cap)
+// and reuses the same server-cached session list the sidebar already polls.
+
+let _activityPollTimer = null;
+let _activityPollInFlight = false;
+const _activityPollMs = 2000;
+// sid → { sid, card, wsName, body, signature, msgCount, fetching }
+const _activityCardState = new Map();
+
+function _isSessionRunningRow(s) {
+  return Boolean(s && s.session_id && (
+    s.is_streaming ||
+    s.active_stream_id ||
+    s.pending_user_message ||
+    s.has_pending_user_message ||
+    s.pending_started_at ||
+    s.cron_running
+  ));
+}
+
+function _activitySessionSortKey(s) {
+  return Number(s.updated_at || s.last_message_at || s.created_at || 0);
+}
+
+function startActivityPolling() {
+  if (_activityPollTimer) return;
+  _activityPollTimer = setInterval(() => {
+    if (_currentPanel !== 'activity') { stopActivityPolling(); return; }
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    loadActivity();
+  }, _activityPollMs);
+}
+
+function stopActivityPolling() {
+  if (_activityPollTimer) { clearInterval(_activityPollTimer); _activityPollTimer = null; }
+}
+
+function _activityWorkspaceLabel(session) {
+  const ws = session && session.workspace ? String(session.workspace) : '';
+  if (!ws) return (typeof t === 'function' ? t('no_workspace') : 'No workspace');
+  if (typeof getWorkspaceFriendlyName === 'function') return getWorkspaceFriendlyName(ws);
+  return ws.split('/').filter(Boolean).pop() || ws;
+}
+
+function _activityEnsureCard(session) {
+  const sid = session.session_id;
+  let st = _activityCardState.get(sid);
+  if (st) {
+    st.wsName.textContent = _activityWorkspaceLabel(session);
+    st.wsName.title = session.workspace ? String(session.workspace) : '';
+    return st;
+  }
+  const card = document.createElement('div');
+  card.className = 'activity-card';
+  card.dataset.sessionId = sid;
+
+  const header = document.createElement('div');
+  header.className = 'activity-card-header';
+  const wsName = document.createElement('span');
+  wsName.className = 'activity-card-ws';
+  const meta = document.createElement('span');
+  meta.className = 'activity-card-meta';
+  const dot = document.createElement('span');
+  dot.className = 'activity-live-dot';
+  dot.setAttribute('aria-hidden', 'true');
+  const runningLabel = document.createElement('span');
+  runningLabel.textContent = (typeof t === 'function' ? t('activity_running') : 'running');
+  meta.appendChild(dot);
+  meta.appendChild(runningLabel);
+  header.appendChild(wsName);
+  header.appendChild(meta);
+
+  const body = document.createElement('div');
+  body.className = 'activity-card-body';
+  card.appendChild(header);
+  card.appendChild(body);
+
+  st = { sid, card, wsName, body, signature: '', msgCount: -1, fetching: false };
+  _activityCardState.set(sid, st);
+  st.wsName.textContent = _activityWorkspaceLabel(session);
+  st.wsName.title = session.workspace ? String(session.workspace) : '';
+  return st;
+}
+
+function renderActivityGrid(running) {
+  const grid = document.getElementById('activityGrid');
+  if (!grid) return;
+  const live = new Set(running.map(s => s.session_id));
+  for (const [sid, st] of Array.from(_activityCardState.entries())) {
+    if (!live.has(sid)) { st.card.remove(); _activityCardState.delete(sid); }
+  }
+  grid.textContent = '';
+  if (running.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'activity-empty';
+    const title = document.createElement('div');
+    title.className = 'activity-empty-title';
+    title.textContent = (typeof t === 'function' ? t('activity_empty_title') : 'No active chats');
+    const sub = document.createElement('div');
+    sub.className = 'activity-empty-sub';
+    sub.textContent = (typeof t === 'function' ? t('activity_empty_sub') : 'Running conversations will appear here as they work.');
+    empty.appendChild(title);
+    empty.appendChild(sub);
+    grid.appendChild(empty);
+    _renderActivitySidebar(running);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const s of running) frag.appendChild(_activityEnsureCard(s).card);
+  grid.appendChild(frag);
+  grid.dataset.count = String(running.length);
+  _renderActivitySidebar(running);
+}
+
+function _renderActivitySidebar(running) {
+  const list = document.getElementById('activitySidebarList');
+  if (!list) return;
+  list.textContent = '';
+  if (running.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'activity-sidebar-empty';
+    empty.textContent = (typeof t === 'function' ? t('activity_empty_title') : 'No active chats');
+    list.appendChild(empty);
+    return;
+  }
+  running.forEach(s => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'activity-sidebar-row';
+    const name = document.createElement('span');
+    name.className = 'activity-sidebar-ws';
+    name.textContent = _activityWorkspaceLabel(s);
+    const title = document.createElement('span');
+    title.className = 'activity-sidebar-title';
+    title.textContent = s.title || '';
+    row.appendChild(name);
+    if (title.textContent) row.appendChild(title);
+    row.addEventListener('click', () => {
+      const st = _activityCardState.get(s.session_id);
+      if (st && st.card) st.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    list.appendChild(row);
+  });
+}
+
+function _activityMarkdownEl(text) {
+  const el = document.createElement('div');
+  el.className = 'activity-md';
+  if (!window.smd) { el.textContent = String(text || ''); return el; }
+  try {
+    const renderer = window.smd.default_renderer(el);
+    const parser = window.smd.parser(renderer);
+    window.smd.parser_write(parser, String(text || ''));
+    window.smd.parser_end(parser);
+    if (typeof enhanceMarkdownTables === 'function') enhanceMarkdownTables(el);
+  } catch (e) {
+    el.textContent = String(text || '');
+  }
+  return el;
+}
+
+function _activityMessageNode(msg) {
+  const role = msg.role === 'user' ? 'user' : (msg.role === 'assistant' ? 'assistant' : 'other');
+  const wrap = document.createElement('div');
+  wrap.className = 'activity-msg activity-msg-' + role;
+  const content = String(msg.content || '');
+  if (content.trim()) wrap.appendChild(_activityMarkdownEl(content));
+  if (Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
+    const chips = document.createElement('div');
+    chips.className = 'activity-tool-chips';
+    msg.tool_calls.forEach(tc => {
+      const name = (tc && tc.function && tc.function.name) || (tc && tc.name) || 'tool';
+      const chip = document.createElement('span');
+      chip.className = 'activity-tool-chip';
+      chip.textContent = String(name);
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+  }
+  return wrap;
+}
+
+function _activityMessagesSignature(msgs) {
+  const n = msgs.length;
+  const last = msgs[n - 1];
+  let tail = '';
+  if (last) {
+    tail = (last.role || '') + ':' + String(last.content || '').length + ':' + String(last.content || '').slice(-48);
+    if (Array.isArray(last.tool_calls) && last.tool_calls.length) tail += ':tc' + last.tool_calls.length;
+  }
+  return n + '|' + tail;
+}
+
+function _renderActivityMessages(st, msgs) {
+  const body = st.body;
+  const existing = body.querySelectorAll(':scope > .activity-msg');
+  // Streaming fast path: same message count → only the tail message changed.
+  if (existing.length === msgs.length && msgs.length > 0) {
+    const newNode = _activityMessageNode(msgs[msgs.length - 1]);
+    body.replaceChild(newNode, existing[existing.length - 1]);
+    body.scrollTop = body.scrollHeight;
+    st.msgCount = msgs.length;
+    return;
+  }
+  body.textContent = '';
+  const frag = document.createDocumentFragment();
+  for (const m of msgs) frag.appendChild(_activityMessageNode(m));
+  body.appendChild(frag);
+  body.scrollTop = body.scrollHeight;
+  st.msgCount = msgs.length;
+}
+
+async function _refreshActivityCard(session) {
+  const st = _activityCardState.get(session.session_id);
+  if (!st || st.fetching) return;
+  st.fetching = true;
+  try {
+    const data = await api(
+      `/api/session?session_id=${encodeURIComponent(session.session_id)}&messages=1&resolve_model=0&msg_limit=60`,
+      { timeoutToast: false, timeoutMs: 45000 }
+    );
+    if (!data || !data.session) return;
+    const msgs = (data.session.messages || []).filter(m => m && m.role);
+    const signature = _activityMessagesSignature(msgs);
+    if (signature === st.signature) return;
+    st.signature = signature;
+    _renderActivityMessages(st, msgs);
+  } catch (e) {
+    // Transient failure (404 after the session finished, network blip, etc.):
+    // keep the last good render; the next poll corrects.
+  } finally {
+    st.fetching = false;
+  }
+}
+
+async function loadActivity() {
+  if (_activityPollInFlight) return;
+  _activityPollInFlight = true;
+  try {
+    let rows = null;
+    try {
+      const qs = typeof _sessionListQueryString === 'function' ? _sessionListQueryString() : '';
+      const data = await api('/api/sessions' + qs, { timeoutToast: false });
+      if (data && Array.isArray(data.sessions)) rows = data.sessions;
+    } catch (e) {
+      if (typeof _allSessions !== 'undefined' && Array.isArray(_allSessions)) rows = _allSessions;
+    }
+    if (!Array.isArray(rows)) rows = [];
+    const running = rows.filter(_isSessionRunningRow);
+    running.sort((a, b) => _activitySessionSortKey(b) - _activitySessionSortKey(a));
+    renderActivityGrid(running);
+    await Promise.all(running.map(s => _refreshActivityCard(s)));
+  } finally {
+    _activityPollInFlight = false;
   }
 }
 
