@@ -18716,6 +18716,18 @@ function _toolDetailLeadText(kind, tc){
   return target;
 }
 function buildToolCard(tc){
+  // Bound the result body that reaches the DOM. The SSE snippet is already
+  // capped server-side (_TOOL_RESULT_SNIPPET_MAX=4000), but settled/enriched
+  // tool rows can carry the FULL tool output (terminal stdout, patch diffs).
+  // Rendering that raw multi-megabyte body — into the <pre> and the data-full
+  // expander attribute — plus the live-turn outerHTML snapshot that runs on
+  // every tool event (snapshotLiveTurnHtmlForSession) is what freezes the tab
+  // under Transparent Stream when a command emits a huge result. Cap the copy
+  // used for rendering; the full text stays on the live tc for other paths.
+  const _TOOL_CARD_BODY_MAX=64000;
+  if(tc&&typeof tc.snippet==='string'&&tc.snippet.length>_TOOL_CARD_BODY_MAX){
+    tc={...tc,snippet:`${tc.snippet.slice(0,_TOOL_CARD_BODY_MAX)}\n…[output truncated for display]`};
+  }
   const row=document.createElement('div');
   row.className='tool-card-row';
   if(!row.dataset) row.dataset={};
