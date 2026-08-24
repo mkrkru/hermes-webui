@@ -463,6 +463,9 @@ async function switchPanel(name, opts = {}) {
   if (nextPanel === 'insights') await loadInsights();
   if (nextPanel === 'logs') await loadLogs();
   if (nextPanel === 'activity') {
+    // Activity is a full-screen monitor: drop the chat-scoped workspace panel
+    // so it doesn't linger alongside the running-chats grid.
+    if (typeof closeWorkspacePanel === 'function') closeWorkspacePanel();
     startActivityPolling();
     loadActivity();
   }
