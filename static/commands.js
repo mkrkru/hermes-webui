@@ -1443,6 +1443,17 @@ function _showSteerIndicator(text){
   if(typeof scrollToBottom==='function') scrollToBottom();
 }
 
+function _dismissSteerIndicators(){
+  // Hide steer indicators once the agent has advanced past them — the next
+  // tool-result boundary is where the agent applies a pending steer, so a
+  // steer banner should not linger for the rest of the turn.
+  const inner=document.getElementById('msgInner');
+  if(!inner) return;
+  const els=inner.querySelectorAll('.steer-indicator');
+  if(!els.length) return;
+  els.forEach(el=>el.remove());
+}
+
 function _showSteerRecovery(msg, explicitSteer, fallback) {
   const inner = document.getElementById('msgInner');
   if (!inner) return;
