@@ -23,12 +23,18 @@ def test_new_session_request_can_include_worktree_flag():
     assert "reqBody.worktree=!!options.worktree" in src
 
 
-def test_workspace_dropdown_exposes_new_worktree_conversation_action():
+def test_workspace_dropdown_inlines_workspaces_and_drops_footer_actions():
     src = read("static/panels.js")
-    assert "workspace_new_worktree_conversation" in src
-    assert "workspace_new_worktree_conversation_meta" in src
-    assert "newSession(false,{worktree:true})" in src
-    assert "li('git-branch',12)" in src
+    # The three footer actions were removed from the dropdown: the worktree
+    # action, the "choose path" prompt, and the bottom "Manage workspaces" row.
+    assert "workspace_new_worktree_conversation" not in src
+    assert "newSession(false,{worktree:true})" not in src
+    assert "workspace_choose_path" not in src
+    # Workspaces render inline in the dropdown — no nested scroll container.
+    assert "ws-list-container" not in src
+    # "Manage workspaces" now lives behind a gear button in the search row.
+    assert "ws-search-settings" in src
+    assert "mobileSwitchPanel('workspaces')" in src
 
 
 def test_session_sidebar_renders_worktree_indicator():

@@ -5770,14 +5770,6 @@ function _shouldRestoreComposerWorkspaceFocus(dd){
   return !!(dd&&dd.contains(active));
 }
 
-function _renderWorkspaceAction(label, meta, iconSvg, onClick){
-  const opt=document.createElement('div');
-  opt.className='ws-opt ws-opt-action';
-  opt.innerHTML=`<span class="ws-opt-icon">${iconSvg}</span><span><span class="ws-opt-name">${esc(label)}</span>${meta?`<span class="ws-opt-meta">${esc(meta)}</span>`:''}</span>`;
-  opt.onclick=onClick;
-  return opt;
-}
-
 function _positionComposerWsDropdown(){
   const dd=$('composerWsDropdown');
   const chip=$('composerWorkspaceGroup')||$('composerWorkspaceChip');
@@ -5827,17 +5819,16 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
   // ── Search row ──────────────────────────────────────────────────────────
   const searchRow=document.createElement('div');
   searchRow.className='ws-search-row';
-  searchRow.innerHTML=`<input class="ws-search-input" type="text" placeholder="${esc(t('ws_search_placeholder')||'Search workspaces…')}" spellcheck="false" autocomplete="off"><button class="ws-search-clear" title="Clear search">${li('x',10)}</button>`;
+  searchRow.innerHTML=`<input class="ws-search-input" type="text" placeholder="${esc(t('ws_search_placeholder')||'Search workspaces…')}" spellcheck="false" autocomplete="off"><button class="ws-search-clear" title="Clear search">${li('x',10)}</button><button class="ws-search-settings" title="${esc(t('workspace_manage'))}" aria-label="${esc(t('workspace_manage'))}">${li('settings',12)}</button>`;
   const si=searchRow.querySelector('.ws-search-input');
   const sc=searchRow.querySelector('.ws-search-clear');
+  const ss=searchRow.querySelector('.ws-search-settings');
+  ss.addEventListener('click',()=>{closeWsDropdown();mobileSwitchPanel('workspaces');});
   dd.appendChild(searchRow);
 
-  // ── Workspace list ──────────────────────────────────────────────────────
+  // ── Workspace list (rendered inline, no nested scroll container) ───────
   // Sort alphabetically by name (case-insensitive) before rendering.
   const sorted=[...workspaces].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  const listContainer=document.createElement('div');
-  listContainer.className='ws-list-container';
-  dd.appendChild(listContainer);
 
   // Pre-create noResults element so filterWs can reference it safely from the start.
   const noResults=document.createElement('div');
@@ -5848,7 +5839,7 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
   function filterWs(term){
     term=(term||'').trim().toLowerCase();
     let visible=0;
-    const opts=listContainer.querySelectorAll('.ws-opt');
+    const opts=dd.querySelectorAll('.ws-opt');
     for(const opt of opts){
       const name=(opt.dataset.name||'').toLowerCase();
       const path=(opt.dataset.path||'').toLowerCase();
@@ -5860,7 +5851,7 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
   }
 
   function renderList(){
-    listContainer.innerHTML='';
+    dd.querySelectorAll('.ws-opt').forEach(o=>o.remove());
     for(const w of sorted){
       const opt=document.createElement('div');
       opt.className='ws-opt'+(w.path===currentWs?' active':'');
@@ -5868,9 +5859,9 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
       opt.dataset.path=w.path||'';
       opt.innerHTML=`<span class="ws-opt-name">${esc(w.name)}</span><span class="ws-opt-path">${esc(w.path)}</span>`;
       opt.onclick=()=>switchToWorkspace(w.path,w.name);
-      listContainer.appendChild(opt);
+      dd.appendChild(opt);
     }
-    listContainer.appendChild(noResults);
+    dd.appendChild(noResults);
   }
 
   renderList();
@@ -5878,40 +5869,6 @@ function renderWorkspaceDropdownInto(dd, workspaces, currentWs){
 
   si.addEventListener('input',()=>{ filterWs(si.value); });
   sc.addEventListener('click',()=>{ si.value=''; filterWs(''); si.focus(); });
-
-  // ── Footer actions ────────────────────────────────────────────────────────
-  dd.appendChild(document.createElement('div')).className='ws-divider';
-  dd.appendChild(_renderWorkspaceAction(
-    t('workspace_new_worktree_conversation'),
-    t('workspace_new_worktree_conversation_meta'),
-    li('git-branch',12),
-    async()=>{
-      closeWsDropdown();
-      try{
-        await newSession(false,{worktree:true});
-        await renderSessionList();
-        const msg=$('msg');
-        if(msg)msg.focus();
-        showToast(t('workspace_worktree_created'));
-      }catch(e){
-        showToast(t('workspace_worktree_failed')+(e&&e.message?e.message:e),'error');
-      }
-    }
-  ));
-  dd.appendChild(document.createElement('div')).className='ws-divider';
-  dd.appendChild(_renderWorkspaceAction(
-    t('workspace_choose_path'),
-    t('workspace_choose_path_meta'),
-    li('folder',12),
-    ()=>promptWorkspacePath()
-  ));
-  const div=document.createElement('div');div.className='ws-divider';dd.appendChild(div);
-  dd.appendChild(_renderWorkspaceAction(
-    t('workspace_manage'),
-    t('workspace_manage_meta'),
-    li('settings',12),
-    ()=>{closeWsDropdown();mobileSwitchPanel('workspaces');}
-  ));
 }
 
 function toggleWsDropdown(){

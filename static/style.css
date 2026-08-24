@@ -2691,7 +2691,7 @@
     .empty-portal-video{display:none;}
     .empty-portal-poster{display:block;}
   }
-  /* "HELLO, MKRV" greeting below the figure: Sigurd Variable (the display
+  /* "HIYA MKRV" greeting below the figure: Sigurd Variable (the display
      font behind "THE AGENT THAT GROWS WITH YOU" on the Hermes Agent site),
      light weight, generous tracking, tight leading. */
   @font-face{font-family:'Sigurd Variable';src:url('sigurd-variable.woff2') format('woff2');font-weight:300 800;font-display:swap;}
@@ -3487,7 +3487,8 @@
 .ws-search-input:focus{border-color:var(--accent);}
 .ws-search-clear{flex-shrink:0;width:22px;height:22px;border:1px solid var(--border2);border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color .12s,border-color .12s;font-size:10px;}
 .ws-search-clear:hover{color:var(--text);border-color:var(--border);}
-.ws-list-container{overflow-y:auto;max-height:260px;}
+.ws-search-settings{flex-shrink:0;width:22px;height:22px;border:1px solid var(--border2);border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:color .12s,border-color .12s;font-size:10px;}
+.ws-search-settings:hover{color:var(--text);border-color:var(--border);}
 .ws-no-results{padding:12px 14px;text-align:center;color:var(--muted);font-size:12px;}
 .ws-opt-icon{display:inline-flex;align-items:center;justify-content:center;opacity:.82;flex-shrink:0;}
 .ws-opt-meta{font-size:11px;color:var(--muted);}
