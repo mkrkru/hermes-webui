@@ -1409,12 +1409,14 @@ async function newSession(flash, options={}){
     _messagesTruncated=false;
     _oldestIdx=0;
     clearLiveToolCards();
-    // Explicit profile switch wins, then the current conversation, then the profile default.
+    // Explicit workspace override (sidebar quick-create) wins, then an explicit
+    // profile switch, then the current conversation, then the profile default.
     // Provenance lets the server recover only a deleted inherited path; explicit paths stay strict.
+    const explicitWs=(options&&options.workspace)?String(options.workspace):null;
     const switchWs=S._profileSwitchWorkspace;
     S._profileSwitchWorkspace=null;
-    const sessionWs=(!switchWs&&S.session)?S.session.workspace:null;
-    const inheritWs=switchWs||sessionWs||(S._profileDefaultWorkspace||null);
+    const sessionWs=(!explicitWs&&!switchWs&&S.session)?S.session.workspace:null;
+    const inheritWs=explicitWs||switchWs||sessionWs||(S._profileDefaultWorkspace||null);
     const reqBody={
       workspace:inheritWs,
       profile:S.activeProfile||'default',
@@ -7713,6 +7715,26 @@ function _attachProjectQuickCreateButton(chip, project){
   chip.appendChild(btn);
 }
 
+function _attachWorkspaceNewChatAction(hdr, wsPath){
+  hdr.title='New chat in this workspace';
+  hdr.setAttribute('role','button');
+  hdr.setAttribute('aria-label','New chat in this workspace');
+  hdr.onclick=async()=>{
+    if(_newSessionInFlight){
+      try{ await newSession(false,{workspace:wsPath}); }catch(_){}
+      return;
+    }
+    try{
+      await newSession(false,{workspace:wsPath});
+      try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
+      try{ if(typeof renderSessionList==='function') void renderSessionList({deferWhileInteracting:false}); }catch(_){}
+      if(typeof closeMobileSidebar==='function') closeMobileSidebar();
+    }catch(err){
+      if(typeof showToast==='function') showToast('New chat failed: '+(err&&err.message||err));
+    }
+  };
+}
+
 
 function renderSessionListFromCache(){
   // #4671: while a profile-switch skeleton is up, bail — _allSessions still holds the
@@ -7908,10 +7930,6 @@ function renderSessionListFromCache(){
   const unpinned=orderedSessions.filter(s=>!s.pinned);
   // Date grouping: Pinned / Today / Yesterday / This week / Last week / Older
   const now=_serverNowMs();
-  // Collapse state persisted in localStorage
-  let _groupCollapsed={};
-  try{_groupCollapsed=JSON.parse(localStorage.getItem('hermes-date-groups-collapsed')||'{}');}catch(e){}
-  const _saveCollapsed=()=>{try{localStorage.setItem('hermes-date-groups-collapsed',JSON.stringify(_groupCollapsed));}catch(e){}};
   // Group sessions by workspace (alphabetical by friendly name), then by
   // recency within each workspace. Replaces the old date bucketing.
   const groups=[];
@@ -7923,7 +7941,8 @@ function renderSessionListFromCache(){
   }else{
     // Group WebUI sessions by workspace (alphabetical by friendly name), then
     // by recency within each workspace. Replaces the old date bucketing.
-    let curLabel=null,curItems=[];
+    const wsGroups=[];
+    let curLabel=null,curPath='',curItems=[];
     const unpinnedByWorkspace=[...unpinned].sort((a,b)=>{
       const la=(_sessionWorkspaceLabel(a)||'').toLowerCase();
       const lb=(_sessionWorkspaceLabel(b)||'').toLowerCase();
@@ -7932,16 +7951,35 @@ function renderSessionListFromCache(){
     });
     for(const s of unpinnedByWorkspace){
       const label=_sessionWorkspaceLabel(s);
+      const wsPath=(s&&s.workspace)?String(s.workspace):'';
       if(label!==curLabel){
-        if(curItems.length) groups.push({label:curLabel,items:curItems});
-        curLabel=label;curItems=[s];
+        if(curItems.length) wsGroups.push({label:curLabel,path:curPath,items:curItems,isWorkspace:!!curPath});
+        curLabel=label;curPath=wsPath;curItems=[s];
       } else { curItems.push(s); }
     }
-    if(curItems.length) groups.push({label:curLabel,items:curItems});
+    if(curItems.length) wsGroups.push({label:curLabel,path:curPath,items:curItems,isWorkspace:!!curPath});
+    // Registered workspaces with no sessions yet render as empty group headers so
+    // every configured workspace stays visible with a quick-create button.
+    if(typeof _workspaceList!=='undefined'&&Array.isArray(_workspaceList)){
+      const seen=new Set(wsGroups.map(g=>g.path).filter(Boolean));
+      for(const w of _workspaceList){
+        const p=w&&w.path?String(w.path):'';
+        if(p&&!seen.has(p)){
+          seen.add(p);
+          const label=(typeof getWorkspaceFriendlyName==='function')?getWorkspaceFriendlyName(p):(p.split('/').filter(Boolean).pop()||p);
+          wsGroups.push({label:label,path:p,items:[],isWorkspace:true});
+        }
+      }
+    }
+    wsGroups.sort((a,b)=>{
+      const la=(a.label||'').toLowerCase();
+      const lb=(b.label||'').toLowerCase();
+      return la<lb?-1:1;
+    });
+    for(const g of wsGroups) groups.push(g);
   }
   const flatSessionRows=[];
   for(const g of groups){
-    if(_groupCollapsed[g.label]) continue;
     for(const s of g.items){ flatSessionRows.push({group:g,session:s}); }
   }
   _sessionVisibleSidebarIds=flatSessionRows.map(row=>row.session&&row.session.session_id).filter(Boolean);
@@ -7995,41 +8033,30 @@ function renderSessionListFromCache(){
   list.dataset.sessionVirtualFilter=q;
   list.dataset.sessionVirtualStart=String(virtualWindow.start);
   list.dataset.sessionVirtualEnd=String(virtualWindow.end);
-  // Render groups with collapsible headers. Large sidebars render only the
+  // Render groups with always-expanded headers. Large sidebars render only the
   // current session-row window plus top/bottom spacers inside each group body;
-  // headers remain real DOM so pin/archive/date grouping and clicks survive.
+  // headers remain real DOM so pin/workspace grouping and clicks survive.
+  // Workspace headers double as "new chat in this workspace" buttons.
   let globalSessionRowIndex=0;
   for(const g of groups){
     const wrapper=document.createElement('div');
     wrapper.className='session-date-group';
     const body=document.createElement('div');
     body.className='session-date-body';
-    let isGroupCollapsed=false;
     if(!g.isFlat){
+      const isWorkspaceGroup=Boolean(g.isWorkspace&&g.path);
       const hdr=document.createElement('div');
-      hdr.className='session-date-header'+(g.isPinned?' pinned':'');
-      const caret=document.createElement('span');
-      caret.className='session-date-caret';
-      caret.textContent='\u25BE'; // down when expanded; rotated right when collapsed
+      hdr.className='session-date-header'+(g.isPinned?' pinned':'')+(isWorkspaceGroup?' workspace':'');
       const label=document.createElement('span');
+      label.className='session-date-label';
       label.textContent=g.label;
-      hdr.appendChild(caret);hdr.appendChild(label);
-      isGroupCollapsed=Boolean(_groupCollapsed[g.label]);
-      if(isGroupCollapsed){body.style.display='none';caret.classList.add('collapsed');}
-      hdr.onclick=()=>{
-        const isCollapsed=body.style.display==='none';
-        body.style.display=isCollapsed?'':'none';
-        caret.classList.toggle('collapsed',!isCollapsed);
-        _groupCollapsed[g.label]=!isCollapsed;
-        _saveCollapsed();
-        renderSessionListFromCache();
-      };
+      hdr.appendChild(label);
+      if(isWorkspaceGroup) _attachWorkspaceNewChatAction(hdr,g.path);
       wrapper.appendChild(hdr);
     }
     let groupTopPad=0;
     let groupBottomPad=0;
     for(const s of g.items){
-      if(isGroupCollapsed) continue;
       const rowIndex=globalSessionRowIndex++;
       const inWindow=!virtualWindow.virtualized||(rowIndex>=virtualWindow.start&&rowIndex<virtualWindow.end);
       if(inWindow){ body.appendChild(_renderOneSession(s, Boolean(g.isPinned))); }

@@ -319,6 +319,7 @@ const LOCALES = {
     steer_fail_unknown: 'Steer unavailable',
     steer_recovery_retry: 'Retry',
     steer_recovery_dismiss: 'Dismiss',
+    steer_delete: 'Delete steer',
     busy_interrupt_confirm: 'Interrupted — sending new message',
     settings_label_default_message_mode: 'Default message mode',
     settings_desc_default_message_mode: 'Controls what happens when you send a message while the agent is running. Queue waits; Interrupt cancels and starts fresh; Steer injects a correction mid-turn without interrupting. If Steer is unavailable, the draft is restored so you can choose the next action.',

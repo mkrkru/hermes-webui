@@ -5738,9 +5738,15 @@ async function loadWorkspaceList(){
   try{
     const data = await api('/api/workspaces');
     if(typeof syncTerminalBackendState==='function') syncTerminalBackendState(data);
-    _workspaceList = data.workspaces || [];
+    const prevPaths=Array.isArray(_workspaceList)?_workspaceList.map(w=>(w&&w.path)||'').sort().join('\n'):'';
+    const next=(data.workspaces||[]);
+    const nextPaths=next.map(w=>(w&&w.path)||'').sort().join('\n');
+    const changed=prevPaths!==nextPaths;
+    _workspaceList = next;
     syncWorkspaceDisplays();
     if(typeof syncTerminalButton==='function') syncTerminalButton();
+    // Empty workspaces render as sidebar group headers, so a refreshed list must repaint.
+    if(changed && typeof renderSessionListFromCache==='function'){ try{ renderSessionListFromCache(); }catch(_){} }
     return data;
   }catch(e){ return {workspaces:[], last:''}; }
 }

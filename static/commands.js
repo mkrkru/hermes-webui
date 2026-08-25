@@ -1489,16 +1489,29 @@ function _beginSteerEdit(el){
   cancelBtn.className='steer-edit-cancel';
   cancelBtn.title=(typeof t==='function'?(t('steer_recovery_dismiss')||'Dismiss'):'Dismiss');
   cancelBtn.innerHTML=li('x',12);
+  const deleteBtn=document.createElement('button');
+  deleteBtn.type='button';
+  deleteBtn.className='steer-edit-delete';
+  deleteBtn.title=(typeof t==='function'?(t('steer_delete')||'Delete steer'):'Delete steer');
+  deleteBtn.innerHTML=li('trash-2',12);
   el.appendChild(input);
   el.appendChild(cancelBtn);
+  el.appendChild(deleteBtn);
   const commit=()=>_commitSteerEdit(el,input.value,original);
   const cancel=()=>_cancelSteerEdit(el,original);
+  const remove=()=>_deleteSteerEdit(el);
+  // Clicking a button must not first fire the input's blur→commit path (which
+  // would POST a replace before the button's own cancel/delete runs).
+  let suppressBlurCommit=false;
   input.addEventListener('keydown',(e)=>{
     if(e.key==='Enter'){ e.preventDefault(); commit(); }
     else if(e.key==='Escape'){ e.preventDefault(); cancel(); }
   });
-  input.addEventListener('blur',()=>commit());
+  input.addEventListener('blur',()=>{ if(!suppressBlurCommit) commit(); });
+  cancelBtn.addEventListener('pointerdown',()=>{ suppressBlurCommit=true; });
+  deleteBtn.addEventListener('pointerdown',()=>{ suppressBlurCommit=true; });
   cancelBtn.addEventListener('click',(e)=>{ e.stopPropagation(); cancel(); });
+  deleteBtn.addEventListener('click',(e)=>{ e.stopPropagation(); remove(); });
   try{ input.focus(); input.select(); }catch(_){}
 }
 
@@ -1507,6 +1520,8 @@ function _restoreSteerBody(el,text){
   if(oldInput) oldInput.remove();
   const oldCancel=el.querySelector('.steer-edit-cancel');
   if(oldCancel) oldCancel.remove();
+  const oldDelete=el.querySelector('.steer-edit-delete');
+  if(oldDelete) oldDelete.remove();
   const body=document.createElement('span');
   body.className='steer-body';
   body.textContent=_steerBodyLabel(text);
@@ -1542,6 +1557,35 @@ async function _cancelSteerEdit(el,original){
   _flushSteerQueue();
 }
 
+function _remainingPendingSteerTexts(excludeEl){
+  const inner=document.getElementById('msgInner');
+  if(!inner) return [];
+  const out=[];
+  inner.querySelectorAll('.steer-indicator').forEach(el=>{
+    if(el===excludeEl) return;
+    const t=String(el.dataset.steerText||'').trim();
+    if(t) out.push(t);
+  });
+  return out;
+}
+
+async function _deleteSteerEdit(el){
+  if(!el) return;
+  const wasEditing=el.dataset.editing==='1';
+  el.dataset.editing='';
+  if(wasEditing) _steerEditActive=false;
+  const remaining=_remainingPendingSteerTexts(el);
+  el.remove();
+  // The backend keeps a single pending-steer buffer, so deleting one steer must
+  // rewrite the buffer to the remaining steers (or cancel when none remain).
+  if(remaining.length){
+    await _steerModeRequest('replace',remaining.join('\n'));
+  }else{
+    await _steerModeRequest('cancel');
+  }
+  _flushSteerQueue();
+}
+
 async function _flushSteerQueue(){
   if(_steerEditActive) return;
   const queue=_steerQueue.slice();
@@ -1559,14 +1603,23 @@ async function _flushSteerQueue(){
 function _dismissSteerIndicators(){
   // Hide steer indicators once the agent has advanced past them — the next
   // tool-result boundary is where the agent applies a pending steer, so a
-  // steer banner should not linger for the rest of the turn.
+  // steer banner should not linger for the rest of the turn. But NEVER tear
+  // down an indicator whose edit input is still open: that would drop the
+  // user's in-progress edit and reset _steerEditActive, letting subsequent
+  // steers bypass the queue and reach the agent while the user is editing.
   const inner=document.getElementById('msgInner');
   if(!inner) return;
   const els=inner.querySelectorAll('.steer-indicator');
   if(!els.length) return;
-  els.forEach(el=>el.remove());
-  _steerEditActive=false;
-  _steerQueue=[];
+  let editing=false;
+  els.forEach(el=>{
+    if(el.dataset.editing==='1'){ editing=true; return; }
+    el.remove();
+  });
+  if(!editing){
+    _steerEditActive=false;
+    _steerQueue=[];
+  }
 }
 
 function _showSteerRecovery(msg, explicitSteer, fallback) {
