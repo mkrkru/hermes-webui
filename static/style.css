@@ -7473,7 +7473,7 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 .activity-live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--focus-ring);animation:activityPulse 1.6s ease-out infinite;}
 @keyframes activityPulse{0%{box-shadow:0 0 0 0 var(--focus-ring);}70%{box-shadow:0 0 0 6px rgba(0,0,0,0);}100%{box-shadow:0 0 0 0 rgba(0,0,0,0);}}
 .activity-card-body{flex:1;min-height:0;overflow-y:hidden;padding:12px 24px;display:flex;flex-direction:column;gap:10px;}
-.activity-msg{max-width:100%;}
+.activity-msg{max-width:100%;flex-shrink:0;}
 .activity-msg-user .activity-md{background:var(--surface-subtle);border:1px solid var(--border);border-radius:12px;padding:8px 12px;display:inline-block;max-width:100%;}
 .activity-msg-assistant .activity-md{color:var(--text);}
 .activity-msg-other .activity-md{color:var(--muted);font-size:12px;}
