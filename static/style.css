@@ -2702,6 +2702,9 @@
      light weight, generous tracking, tight leading. */
   @font-face{font-family:'Sigurd Variable';src:url('sigurd-variable.woff2') format('woff2');font-weight:300 800;font-display:swap;}
   .empty-greeting{margin:0;font-family:'Sigurd Variable','Times New Roman',serif;font-weight:300;font-size:clamp(30px,5vw,48px);line-height:.88;letter-spacing:.03em;color:var(--text);text-align:center;}
+  /* The "HIYA MKRV" brand greeting only renders on the brand domain; every
+     other deployment keeps just the portal figure with no text. */
+  :root[data-hide-brand-greeting="1"] .empty-greeting{display:none;}
   /* ── Composer ── */
   .composer-wrap{padding:12px 20px 16px;background:var(--bg);flex-shrink:0;}
   .composer-box{max-width:clamp(780px,60vw,1100px);margin:0 auto;background:linear-gradient(var(--input-bg),var(--input-bg)),var(--bg);border:1px solid var(--border2);border-radius:16px;display:flex;flex-direction:column;transition:border-color .2s,box-shadow .2s;position:relative;z-index:2;}
