@@ -7722,6 +7722,7 @@ function _attachWorkspaceNewChatAction(hdr, wsPath){
   hdr.onclick=async()=>{
     if(_newSessionInFlight){
       try{ await newSession(false,{workspace:wsPath}); }catch(_){}
+      try{ if(typeof _focusComposerOnChatPage==='function') _focusComposerOnChatPage(); }catch(_){}
       return;
     }
     try{
@@ -7729,6 +7730,7 @@ function _attachWorkspaceNewChatAction(hdr, wsPath){
       try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
       try{ if(typeof renderSessionList==='function') void renderSessionList({deferWhileInteracting:false}); }catch(_){}
       if(typeof closeMobileSidebar==='function') closeMobileSidebar();
+      try{ if(typeof _focusComposerOnChatPage==='function') _focusComposerOnChatPage(); }catch(_){}
     }catch(err){
       if(typeof showToast==='function') showToast('New chat failed: '+(err&&err.message||err));
     }
