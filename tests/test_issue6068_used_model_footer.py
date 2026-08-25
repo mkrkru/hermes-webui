@@ -167,6 +167,46 @@ def test_models_allowlist_round_trips_used_model_across_save_reload():
     assert reloaded.messages[-1]["_firstTokenMs"] == 250
 
 
+def test_turn_usage_delta_stamped_and_round_trips_across_save_reload():
+    """#6068 round 3: per-turn usage (tokens + cost) must be stamped server-side
+    and survive a page reload so the "in · out · ~$cost" footer doesn't vanish.
+
+    The client's done handler computes the same delta in memory only; the
+    server-side stamp is what GET /api/session returns after a refresh.
+    """
+    # streaming.py must compute the output/cost/cache-write deltas (input and
+    # cache-read were already computed) and stamp them onto the last assistant
+    # message alongside _turnDuration/_turnTps.
+    assert "_dm['_turnUsage']" in STREAMING_PY
+    assert "turn_output_tokens" in STREAMING_PY
+    assert "turn_estimated_cost" in STREAMING_PY
+    assert "turn_cache_write_tokens" in STREAMING_PY
+    assert "_turnUsage" in MODELS_PY.split("_SESSION_MESSAGE_DISPLAY_METADATA_KEYS")[1].split(")")[0]
+
+    session = Session(session_id="6068turnusage", title="Turn usage")
+    session.messages = [
+        {
+            "role": "assistant",
+            "content": "done",
+            "_turnUsage": {
+                "input_tokens": 1200,
+                "output_tokens": 300,
+                "estimated_cost": 0.0042,
+                "cache_read_tokens": 800,
+                "cache_write_tokens": 0,
+                "cache_hit_percent": 66.7,
+            },
+        },
+    ]
+    session.save()
+
+    reloaded = Session.load("6068turnusage")
+    assert reloaded.messages[-1]["_turnUsage"]["input_tokens"] == 1200
+    assert reloaded.messages[-1]["_turnUsage"]["output_tokens"] == 300
+    assert reloaded.messages[-1]["_turnUsage"]["estimated_cost"] == 0.0042
+    assert reloaded.messages[-1]["_turnUsage"]["cache_hit_percent"] == 66.7
+
+
 @pytest.mark.skipif(NODE is None, reason="node not on PATH")
 def test_used_model_turn_chip_label_renders_and_suppresses_gateway_duplicate():
     """Behavioral footer chip cases from #6068 (not source-string greps)."""

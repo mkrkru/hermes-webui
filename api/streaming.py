@@ -11549,9 +11549,15 @@ def _run_agent_streaming(
                 cache_read_tokens = getattr(agent, 'session_cache_read_tokens', 0) or 0
                 cache_write_tokens = getattr(agent, 'session_cache_write_tokens', 0) or 0
                 prev_input_tokens = getattr(s, 'input_tokens', 0) or 0
+                prev_output_tokens = getattr(s, 'output_tokens', 0) or 0
+                prev_estimated_cost = getattr(s, 'estimated_cost', 0) or 0
                 prev_cache_read_tokens = getattr(s, 'cache_read_tokens', 0) or 0
+                prev_cache_write_tokens = getattr(s, 'cache_write_tokens', 0) or 0
                 turn_input_tokens = max(0, input_tokens - prev_input_tokens)
+                turn_output_tokens = max(0, output_tokens - prev_output_tokens)
+                turn_estimated_cost = max(0, (estimated_cost or 0) - prev_estimated_cost)
                 turn_cache_read_tokens = max(0, cache_read_tokens - prev_cache_read_tokens)
+                turn_cache_write_tokens = max(0, cache_write_tokens - prev_cache_write_tokens)
                 # Per-turn percent is computed server-side from persisted session
                 # counters so the message label uses the same denominator as the
                 # final usage payload even if the browser missed an intermediate event.
@@ -11668,6 +11674,21 @@ def _run_agent_streaming(
                                 _dm['_firstTokenMs'] = _ttft_ms
                             if _used_model:
                                 _dm['_usedModel'] = _used_model
+                            # Per-turn usage delta (input/output tokens, cost,
+                            # cache) so the "in · out · ~$cost" footer survives a
+                            # page reload. The client's done handler computes the
+                            # same delta against the pre-turn session totals, but
+                            # only in memory — persisting it here is what makes
+                            # GET /api/session return it after a refresh (#6068).
+                            if turn_input_tokens or turn_output_tokens or turn_cache_read_tokens or turn_cache_write_tokens:
+                                _dm['_turnUsage'] = {
+                                    'input_tokens': turn_input_tokens,
+                                    'output_tokens': turn_output_tokens,
+                                    'estimated_cost': turn_estimated_cost,
+                                    'cache_read_tokens': turn_cache_read_tokens,
+                                    'cache_write_tokens': turn_cache_write_tokens,
+                                    'cache_hit_percent': turn_cache_hit_percent,
+                                }
                             break
                 # Persist context window data on the session so the context-ring
                 # indicator survives a page reload (#1318). Must run BEFORE
