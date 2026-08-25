@@ -81,10 +81,11 @@ global._toolDetailLeadText = ()=>'';
 global._toolDetailLeadLabel = ()=>'Shell';
 global._isMemorySave = ()=>false;
 global._isSkillUpdate = ()=>false;
+global._TOOL_CARD_BODY_MAX = 64000;
 
 // Real functions under test (extracted from the live source):
 for (const fn of ['_snippetLooksLikeDiff','_colorDiffLines','_toolActionKind',
-                  '_toolCardAllowsDetail','buildToolCard','_anchorSceneToolCallFromRow']) {
+                  '_toolCardAllowsDetail','_capToolRenderText','buildToolCard','_anchorSceneToolCallFromRow']) {
   eval(extractFunc(fn));
 }
 
@@ -189,3 +190,31 @@ class TestRestoredPatchCardRendersDiff:
             "restored patch card must render the diff body (diff-block) from the "
             "persisted scene snippet"
         )
+
+
+class TestToolCardCapsHugeArgValues:
+    """A multi-megabyte tool ARG (e.g. write_file `content`, patch `new_string`)
+    must not reach the DOM uncapped. buildToolCard caps `tc.snippet` (see #4622
+    cap work), but args used to render via `String(v)` uncapped — the second
+    multi-MB DOM/outerHTML path behind the Transparent Stream freeze."""
+
+    def test_huge_arg_value_is_capped_in_rendered_card(self, driver_path):
+        # 80KB is well over the 64KB render cap but under the ~128KB argv limit
+        # this driver uses to pass the payload in.
+        huge = "x" * 80_000
+        tc = {"name": "write_file", "args": {"path": "big.txt", "content": huge},
+              "done": True}
+        out = _run(driver_path, "direct", tc)
+        assert "tool-arg-val" in out["html"]
+        # The full 200KB value must not appear in the rendered HTML.
+        assert huge not in out["html"]
+        assert "output truncated for display" in out["html"]
+
+    def test_short_arg_value_is_not_capped(self, driver_path):
+        short = "hello world"
+        tc = {"name": "write_file", "args": {"path": "a.txt", "content": short},
+              "done": True}
+        out = _run(driver_path, "direct", tc)
+        assert "tool-arg-val" in out["html"]
+        assert short in out["html"]
+        assert "output truncated for display" not in out["html"]

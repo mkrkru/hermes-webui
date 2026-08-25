@@ -12038,9 +12038,9 @@ function _transparentToolDetailHtml(tc, status){
   // duration meta when present. (Trifecta finding V6 — reduce redundancy.)
   const meta=[];
   if(tc&&tc.duration!==undefined&&tc.duration!==null) meta.push(['duration', String(tc.duration)]);
-  const preview=String((tc&&(tc.snippet||tc.preview||tc.result||tc.output))||'').trim();
+  const preview=_capToolRenderText(String((tc&&(tc.snippet||tc.preview||tc.result||tc.output))||'').trim());
   const argHtml=[...meta,...argEntries].map(([k,v])=>{
-    let sv=typeof v==='string'?v:JSON.stringify(v,null,2);
+    let sv=_capToolRenderText(typeof v==='string'?v:JSON.stringify(v,null,2));
     // Redact secret-bearing arg values before rendering the transparent Full
     // tab — content args can be long multi-line commands (#4928) whose later
     // lines may carry secrets the short label never showed (#4928 gate).
@@ -18715,18 +18715,26 @@ function _toolDetailLeadText(kind, tc){
   if(!target) return '';
   return target;
 }
+const _TOOL_CARD_BODY_MAX=64000;
+function _capToolRenderText(text){
+  if(typeof text!=='string') return text;
+  if(text.length<=_TOOL_CARD_BODY_MAX) return text;
+  return `${text.slice(0,_TOOL_CARD_BODY_MAX)}\n…[output truncated for display]`;
+}
 function buildToolCard(tc){
   // Bound the result body that reaches the DOM. The SSE snippet is already
   // capped server-side (_TOOL_RESULT_SNIPPET_MAX=4000), but settled/enriched
-  // tool rows can carry the FULL tool output (terminal stdout, patch diffs).
-  // Rendering that raw multi-megabyte body — into the <pre> and the data-full
-  // expander attribute — plus the live-turn outerHTML snapshot that runs on
-  // every tool event (snapshotLiveTurnHtmlForSession) is what freezes the tab
-  // under Transparent Stream when a command emits a huge result. Cap the copy
-  // used for rendering; the full text stays on the live tc for other paths.
-  const _TOOL_CARD_BODY_MAX=64000;
+  // tool rows can carry the FULL tool output (terminal stdout, patch diffs) —
+  // and tool ARGS can too (e.g. write_file with a multi-MB `content`, or a
+  // patch with a huge `new_string`). Rendering that raw multi-megabyte body —
+  // into the <pre>/<span> and the data-full expander attribute — plus the
+  // live-turn outerHTML snapshot that runs on every tool event
+  // (snapshotLiveTurnHtmlForSession) is what freezes the tab under Transparent
+  // Stream when a command emits a huge result. Cap BOTH the snippet and each
+  // arg value used for rendering; the full text stays on the live tc for other
+  // paths.
   if(tc&&typeof tc.snippet==='string'&&tc.snippet.length>_TOOL_CARD_BODY_MAX){
-    tc={...tc,snippet:`${tc.snippet.slice(0,_TOOL_CARD_BODY_MAX)}\n…[output truncated for display]`};
+    tc={...tc,snippet:_capToolRenderText(tc.snippet)};
   }
   const row=document.createElement('div');
   row.className='tool-card-row';
@@ -18787,7 +18795,7 @@ function buildToolCard(tc){
         ${detailLead}
         ${visibleArgs.length?`<div class="tool-card-args">${
           visibleArgs.map(([k,v])=>{
-            let sv=String(v);
+            let sv=_capToolRenderText(typeof v==='string'?v:String(v));
             if(typeof _redactToolTargetLabel==='function'){ try{ sv=_redactToolTargetLabel(sv); }catch(e){} }
             return `<div class="tool-arg-pair"><span class="tool-arg-key">${esc(k)}</span><span class="tool-arg-val">${esc(sv)}</span></div>`;
           }).join('')
