@@ -193,3 +193,11 @@ def test_stream_completion_overwrites_session_usage_with_latest_turn(cleanup_tes
     assert saved_snapshots[-1]["estimated_cost"] == 0.067
     assert saved_snapshots[-1]["cache_read_tokens"] == 9000
     assert saved_snapshots[-1]["cache_write_tokens"] == 1000
+
+    # Per-turn usage delta must be stamped on the last assistant message so the
+    # "in · out · ~$cost" footer survives a reload (#6068 round 3). This
+    # defensive-overwrite scenario reports LOWER cumulative input/output/cost
+    # than the prior session, so only the cache deltas are non-zero.
+    last_asst = fake_session.messages[-1]
+    assert last_asst.get("_turnUsage", {}).get("cache_read_tokens") == 8000
+    assert last_asst.get("_turnUsage", {}).get("cache_write_tokens") == 800
