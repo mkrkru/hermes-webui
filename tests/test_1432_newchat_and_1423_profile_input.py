@@ -45,15 +45,15 @@ class TestIssue1432NewChatGuardInFlight:
         assert 'pending_user_message' in helper, \
             "shared New Chat guard missing pending_user_message check (#1432)"
 
-        # Locate the btnNewChat onclick handler and verify it uses the helper.
+        # Locate the startNewChat handler and verify it uses the helper.
         m = re.search(
-            r"\$\('btnNewChat'\)\.onclick=async\(\)=>\{(.*?)\};",
+            r"async function startNewChat\(\)\{(.*?)\n\}",
             src, re.DOTALL,
         )
-        assert m, "btnNewChat onclick handler not found in boot.js"
+        assert m, "startNewChat handler not found in boot.js"
         body = m.group(1)
         assert '_currentSessionIsReusableEmptyChat()' in body, \
-            "btnNewChat handler must use the shared empty-session guard"
+            "startNewChat handler must use the shared empty-session guard"
 
     def test_cmdK_handler_checks_in_flight_state(self):
         src = _read('boot.js')

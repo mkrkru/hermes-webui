@@ -1376,7 +1376,7 @@ function _announceNewSessionWorkspace(session){
 }
 
 function _setNewSessionPending(pending){
-  const ids=['btnNewChat','btnTitlebarNewChat'];
+  const ids=['btnTitlebarNewChat'];
   for (let i=0;i<ids.length;i++){
     const btn=$(ids[i]);
     if(!btn) continue;
@@ -7699,7 +7699,7 @@ function _attachProjectQuickCreateButton(chip, project){
       try{ if(typeof renderSessionList==='function') void renderSessionList({deferWhileInteracting:false}); }catch(_){}
       // Mobile: the sidebar is a full-screen drawer over the main view — close
       // it after the project conversation is created so the user actually sees
-      // the new session (mirrors $('btnNewChat').onclick in boot.js and the
+      // the new session (mirrors startNewChat() in boot.js and the
       // #5409 close in _openSidebarSession). Failure path keeps the drawer open
       // so the toast stays visible for retry.
       if(typeof closeMobileSidebar==='function') closeMobileSidebar();

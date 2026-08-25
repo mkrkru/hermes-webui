@@ -846,14 +846,14 @@ def test_new_conversation_closes_mobile_sidebar():
     """New conversation must close the mobile drawer so the chat pane is visible immediately."""
     boot_js = (REPO / "static" / "boot.js").read_text(encoding="utf-8")
     # Handler is now multi-line — search for the full block rather than a single line.
-    assert "$('btnNewChat').onclick" in boot_js, "btnNewChat onclick handler missing from static/boot.js"
+    assert "startNewChat" in boot_js, "startNewChat handler missing from static/boot.js"
     # Find the handler block and verify closeMobileSidebar appears in it.
     # The handler grew comments after #1432 (in-flight guard refactor), so use a
     # generous window to cover the full handler body.
-    idx = boot_js.find("$('btnNewChat').onclick")
+    idx = boot_js.find("async function startNewChat()")
     handler_block = boot_js[idx:idx+1500]
     assert "closeMobileSidebar" in handler_block, \
-        "btnNewChat handler must closeMobileSidebar() after creating the new session"
+        "startNewChat handler must closeMobileSidebar() after creating the new session"
 
     shortcut_line = next((ln for ln in boot_js.splitlines() if "e.key==='k'" in ln or "e.key === 'k'" in ln), "")
     assert shortcut_line, "Cmd/Ctrl+K new chat shortcut missing from static/boot.js"
@@ -911,7 +911,7 @@ def test_mobile_titlebar_has_new_conversation_button():
     assert "data-i18n-aria-label=\"new_conversation\"" in header_html
     assert "aria-label=\"New conversation\"" in header_html
     assert "title=\"New conversation\"" in header_html
-    assert "$('btnNewChat').click()" in header_html
+    assert "startNewChat()" in header_html
 
 
 def test_titlebar_new_chat_button_mobile_visibility_css():

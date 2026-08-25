@@ -466,7 +466,7 @@ class RailTooltipCascadeTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # `--bottom-right` variant: anchors tooltip's RIGHT edge to a trigger that sits
 # flush with its container's right edge, so the label extends inward instead of
-# overflowing past the panel edge. Used by `#btnNewChat`.
+# overflowing past the panel edge. Used by `#mobile-sidebar-close`.
 # ---------------------------------------------------------------------------
 class BottomRightTooltipVariantTests(unittest.TestCase):
     def setUp(self):
@@ -493,28 +493,28 @@ class BottomRightTooltipVariantTests(unittest.TestCase):
         self.assertRegex(body, r"transform\s*:\s*none",
                          "--bottom-right variant must reset transform:none")
 
-    def test_btn_new_chat_uses_bottom_right_variant(self):
-        """`#btnNewChat` sits flush with the chat-panel right edge; its tooltip
-        previously overflowed (with `--bottom`, half clips past the panel).
+    def test_mobile_sidebar_close_uses_bottom_right_variant(self):
+        """`#mobile-sidebar-close` sits flush with the chat-panel right edge; its
+        tooltip previously overflowed (with `--bottom`, half clips past the panel).
         Must now use `--bottom-right`, NOT `--bottom`."""
         match = re.search(
-            r'<button[^>]*\bid="btnNewChat"[^>]*>',
+            r'<button[^>]*\bclass="[^"]*\bmobile-sidebar-close\b[^"]*"[^>]*>',
             self.html,
         )
-        self.assertIsNotNone(match, "Could not find #btnNewChat button")
+        self.assertIsNotNone(match, "Could not find .mobile-sidebar-close button")
         attrs = match.group(0)
         self.assertIn(
             "has-tooltip--bottom-right",
             attrs,
-            "#btnNewChat must carry has-tooltip--bottom-right so its tooltip "
-            "doesn't overflow the chat-panel right edge.",
+            ".mobile-sidebar-close must carry has-tooltip--bottom-right so its "
+            "tooltip doesn't overflow the chat-panel right edge.",
         )
         # Must NOT also carry the old --bottom (would conflict).
         self.assertNotRegex(
             attrs,
             r'has-tooltip--bottom(?!-)',
-            "#btnNewChat carries both --bottom and --bottom-right; pick one. "
-            "The plain --bottom variant centers on left:50% and overflows.",
+            ".mobile-sidebar-close carries both --bottom and --bottom-right; pick "
+            "one. The plain --bottom variant centers on left:50% and overflows.",
         )
 
 

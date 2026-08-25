@@ -200,7 +200,7 @@ class TestQuickCreateMobileDrawer:
     z-index 200) covering the main chat view. The quick-create button creates
     the new project conversation but never closed the drawer, so on mobile the
     tap *looked* like a no-op — the session was created, just hidden underneath.
-    Mirrors `$('btnNewChat').onclick` in boot.js and the #5409 close in
+    Mirrors `startNewChat()` in boot.js and the #5409 close in
     `_openSidebarSession`.
     """
 

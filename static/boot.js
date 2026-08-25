@@ -2061,7 +2061,11 @@ function _currentSessionIsReusableEmptyChat(){
 }
 
 $('fileInput').onchange=e=>{addFiles(Array.from(e.target.files));e.target.value='';};
-$('btnNewChat').onclick=async()=>{
+// Shared new-chat entry point (Cmd/Ctrl+K shortcut and the mobile titlebar
+// "New conversation" button both land here). The old sidebar "+" button was
+// removed; its handler is preserved as this named function so the remaining
+// entry points keep the exact same behavior.
+async function startNewChat(){
   // If the current session has no messages AND nothing is in flight, just focus
   // the composer rather than creating another empty session that will clutter the
   // sidebar list (#1171).
@@ -2081,7 +2085,8 @@ $('btnNewChat').onclick=async()=>{
     await renderSessionList();closeMobileSidebar();$('msg').focus();return;
   }
   await newSession();await renderSessionList();closeMobileSidebar();$('msg').focus();
-};
+}
+window.startNewChat=startNewChat;
 $('btnDownload').onclick=()=>{
   if(!S.session)return;
   const blob=new Blob([transcript()],{type:'text/markdown'});

@@ -60,7 +60,7 @@ def test_panels_js_served(cleanup_test_sessions):
 def test_boot_js_served(cleanup_test_sessions):
     src = get_text("/static/boot.js")
     assert "btnSend" in src
-    assert "btnNewChat" in src
+    assert "startNewChat" in src
     # boot IIFE
     assert "(async()=>{" in src or "(async () => {" in src
 
