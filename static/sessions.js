@@ -8054,7 +8054,14 @@ function renderSessionListFromCache(){
       label.className='session-date-label';
       label.textContent=g.label;
       hdr.appendChild(label);
-      if(isWorkspaceGroup) _attachWorkspaceNewChatAction(hdr,g.path);
+      if(isWorkspaceGroup){
+        const plus=document.createElement('span');
+        plus.className='session-date-plus';
+        plus.setAttribute('aria-hidden','true');
+        plus.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+        hdr.appendChild(plus);
+        _attachWorkspaceNewChatAction(hdr,g.path);
+      }
       wrapper.appendChild(hdr);
     }
     let groupTopPad=0;

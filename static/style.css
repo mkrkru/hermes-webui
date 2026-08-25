@@ -1956,6 +1956,8 @@
   .session-date-header:hover{opacity:1;}
   .session-date-header.pinned{color:var(--accent);}
   .session-date-header.workspace{cursor:pointer;}
+  .session-date-header .session-date-plus{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;color:var(--muted);opacity:.7;transition:opacity .15s,color .15s;}
+  .session-date-header:hover .session-date-plus{opacity:1;color:var(--accent);}
 
   /* ── Batch select mode ── */
   .session-select-toggle{font-size:11px;padding:6px 10px;color:var(--muted);cursor:pointer;text-align:center;opacity:.6;transition:opacity .15s;user-select:none;margin-top:4px;border-radius:6px;}
