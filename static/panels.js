@@ -13191,6 +13191,16 @@ function _activityMessagesSignature(msgs) {
   return n + '|' + tail;
 }
 
+function _activityScrollToBottom(body) {
+  // Follow new content down: no scrollbar (overflow hidden), just keep the
+  // tail pinned. rAF defers to after the browser reflows the DOM mutation.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+  } else {
+    body.scrollTop = body.scrollHeight;
+  }
+}
+
 function _renderActivityMessages(st, msgs) {
   const body = st.body;
   const existing = body.querySelectorAll(':scope > .activity-msg');
@@ -13198,7 +13208,7 @@ function _renderActivityMessages(st, msgs) {
   if (existing.length === msgs.length && msgs.length > 0) {
     const newNode = _activityMessageNode(msgs[msgs.length - 1]);
     body.replaceChild(newNode, existing[existing.length - 1]);
-    body.scrollTop = body.scrollHeight;
+    _activityScrollToBottom(body);
     st.msgCount = msgs.length;
     return;
   }
@@ -13206,7 +13216,7 @@ function _renderActivityMessages(st, msgs) {
   const frag = document.createDocumentFragment();
   for (const m of msgs) frag.appendChild(_activityMessageNode(m));
   body.appendChild(frag);
-  body.scrollTop = body.scrollHeight;
+  _activityScrollToBottom(body);
   st.msgCount = msgs.length;
 }
 
