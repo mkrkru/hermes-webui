@@ -6669,12 +6669,9 @@ function _sessionSortTimestampMs(session) {
   return Math.max(base, pendingMs);
 }
 
-function _sessionRunningSortRank(session) {
-  // Don't float the currently-open (active) chat to the top of the list just
-  // because it is running — keep its position stable while the user works in it.
-  if(S.session && session && session.session_id === S.session.session_id) return 0;
-  if(_isSessionEffectivelyStreaming(session)) return 1;
-  return session && session.active_stream_id && session.has_pending_user_message ? 1 : 0;
+function _sessionCreatedAtMs(session) {
+  const raw = Number(session && session.created_at);
+  return Number.isFinite(raw) && raw > 0 ? raw * 1000 : 0;
 }
 
 function _sessionWorkspaceLabel(session) {
@@ -6688,8 +6685,12 @@ function _sessionWorkspaceLabel(session) {
 }
 
 function _sessionSidebarSortCompare(a, b) {
-  const activeDelta = _sessionRunningSortRank(b) - _sessionRunningSortRank(a);
-  if(activeDelta) return activeDelta;
+  // Stable ordering: sort by creation time so the list does not reorder when
+  // the user switches chats or while another chat streams. Sessions without a
+  // creation timestamp (legacy/imported rows) fall back to activity recency.
+  const aCreated = _sessionCreatedAtMs(a);
+  const bCreated = _sessionCreatedAtMs(b);
+  if (aCreated || bCreated) return bCreated - aCreated;
   return _sessionSortTimestampMs(b) - _sessionSortTimestampMs(a);
 }
 

@@ -306,13 +306,11 @@ def test_sessions_api_runtime_overlay_sorts_active_rows_first(monkeypatch):
     assert body["sessions"][0]["updated_at"] == "400"
 
 
-def test_frontend_session_list_sorts_effective_streaming_rows_first():
+def test_frontend_session_list_sorts_by_stable_creation_time():
     src = (pathlib.Path(__file__).parent.parent / "static" / "sessions.js").read_text(encoding="utf-8")
 
     assert "function _sessionSidebarSortCompare(a, b)" in src
-    assert "function _sessionRunningSortRank(session)" in src
-    assert "_isSessionEffectivelyStreaming(session)" in src
-    assert "session.active_stream_id && session.has_pending_user_message" in src
+    assert "function _sessionCreatedAtMs(session)" in src
     assert "const orderedSessions=[...sessions].sort(_sessionSidebarSortCompare);" in src
 
 
