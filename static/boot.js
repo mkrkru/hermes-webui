@@ -1,6 +1,55 @@
 // Early boot initialization that must run before any other code.
 // These run during script evaluation to handle server-stopped state
 // and cross-tab shutdown broadcasts as early as possible.
+
+// ── Appearance registry (theme = light/dark/system, skin = palette/accent) ──
+// Declared before any top-level boot code that could throw. The appearance
+// helper functions are hoisted (callable before this point), but their `const`
+// data is not — so the registry must initialize first. Otherwise a settings
+// panel load (or /theme command) after an early boot failure hits a TDZ
+// "Cannot access '_SKINS' before initialization".
+const _THEMES=[
+  {name:'Light', value:'light', colors:['#FEFCF7','#FAF7F0','#B8860B']},
+  {name:'Dark', value:'dark', colors:['#0D0D1A','#141425','#FFD700']},
+  {name:'System', value:'system', colors:['#FEFCF7','#0D0D1A','#B8860B']},
+];
+const _SKINS=[
+  {name:'Default',  colors:['#FFD700','#FFBF00','#CD7F32']},
+  {name:'Ares',     colors:['#FF4444','#CC3333','#992222']},
+  {name:'Mono',     colors:['#CCCCCC','#999999','#666666']},
+  {name:'Graphite', colors:['#FFFFFF','#D6D6D6','#242424']},
+  {name:'GitHub', colors:['#0969DA','#1F883D','#242424']},
+  {name:'Codex', colors:['#72B39A','#242624','#ECEBE4']},
+  {name:'Terracotta', colors:['#D97757','#F0EEE6','#141413']},
+  {name:'Indigo', value:'indigo', colors:['#6676E8','#ECEEF6','#0E1224']},
+  {name:'Slate',    colors:['#334155','#475569','#64748b']},
+  {name:'Poseidon', colors:['#0EA5E9','#0284C7','#0369A1']},
+  {name:'Sisyphus', colors:['#A78BFA','#8B5CF6','#7C3AED']},
+  {name:'Charizard',colors:['#FB923C','#F97316','#EA580C']},
+  {name:'Sienna',   colors:['#D97757','#C06A49','#9A523A']},
+  {name:'Catppuccin',colors:['#CBA6F7','#B4BEFE','#8839EF']},
+  {name:'Hepburn',   colors:['#c6246a','#ec5597','#f2abca']},
+  {name:'Nous',     colors:['#4682B4','#3A6E9A','#2C5F88']},
+  {name:'Neon',     colors:['#B347FF','#C76BFF','#00DDFF']},
+  {name:'Neon Soft', value:'neon-soft', colors:['#B347FF','#C76BFF','#00DDFF']},
+  {name:'Neon Paint', value:'neon-paint', colors:['#FF2D95','#00E5FF','#FFB800']},
+  {name:'Geist Contrast', value:'geist-contrast', colors:['#000000','#ffffff','#FFF175']},
+  {name:'Zeus',     colors:['#FFD700','#FFBF00','#1A1A00']},
+  {name:'Verdigris', value:'verdigris', colors:['#C89A5A','#0F1714','#22342C']},
+];
+const _VALID_THEMES=new Set((_THEMES||[]).map(t=>t.value));
+const _VALID_SKINS=new Set((_SKINS||[]).map(s=>(s.value||s.name).toLowerCase()));
+const _LEGACY_THEME_MAP={
+  slate:{theme:'dark',skin:'slate'},
+  solarized:{theme:'dark',skin:'poseidon'},
+  monokai:{theme:'dark',skin:'sisyphus'},
+  nord:{theme:'dark',skin:'slate'},
+  oled:{theme:'dark',skin:'default'},
+};
+let _systemThemeMq=null;
+let _onSystemThemeChange=null;
+let _resolvedThemeBaseDark=false;
+
 (function(){
   // Clear stale stop-server flag on successful page load (server is reachable)
   try{localStorage.removeItem('hermes-webui-server-stopped');}catch(_){}
@@ -2771,48 +2820,8 @@ if(window.visualViewport){
 })();
 
 // ── Appearance helpers (theme = light/dark/system, skin = palette/accent) ────
-const _THEMES=[
-  {name:'Light', value:'light', colors:['#FEFCF7','#FAF7F0','#B8860B']},
-  {name:'Dark', value:'dark', colors:['#0D0D1A','#141425','#FFD700']},
-  {name:'System', value:'system', colors:['#FEFCF7','#0D0D1A','#B8860B']},
-];
-const _SKINS=[
-  {name:'Default',  colors:['#FFD700','#FFBF00','#CD7F32']},
-  {name:'Ares',     colors:['#FF4444','#CC3333','#992222']},
-  {name:'Mono',     colors:['#CCCCCC','#999999','#666666']},
-  {name:'Graphite', colors:['#FFFFFF','#D6D6D6','#242424']},
-  {name:'GitHub', colors:['#0969DA','#1F883D','#242424']},
-  {name:'Codex', colors:['#72B39A','#242624','#ECEBE4']},
-  {name:'Terracotta', colors:['#D97757','#F0EEE6','#141413']},
-  {name:'Indigo', value:'indigo', colors:['#6676E8','#ECEEF6','#0E1224']},
-  {name:'Slate',    colors:['#334155','#475569','#64748b']},
-  {name:'Poseidon', colors:['#0EA5E9','#0284C7','#0369A1']},
-  {name:'Sisyphus', colors:['#A78BFA','#8B5CF6','#7C3AED']},
-  {name:'Charizard',colors:['#FB923C','#F97316','#EA580C']},
-  {name:'Sienna',   colors:['#D97757','#C06A49','#9A523A']},
-  {name:'Catppuccin',colors:['#CBA6F7','#B4BEFE','#8839EF']},
-  {name:'Hepburn',   colors:['#c6246a','#ec5597','#f2abca']},
-  {name:'Nous',     colors:['#4682B4','#3A6E9A','#2C5F88']},
-  {name:'Neon',     colors:['#B347FF','#C76BFF','#00DDFF']},
-  {name:'Neon Soft', value:'neon-soft', colors:['#B347FF','#C76BFF','#00DDFF']},
-  {name:'Neon Paint', value:'neon-paint', colors:['#FF2D95','#00E5FF','#FFB800']},
-  {name:'Geist Contrast', value:'geist-contrast', colors:['#000000','#ffffff','#FFF175']},
-  {name:'Zeus',     colors:['#FFD700','#FFBF00','#1A1A00']},
-  {name:'Verdigris', value:'verdigris', colors:['#C89A5A','#0F1714','#22342C']},
-];
-const _VALID_THEMES=new Set((_THEMES||[]).map(t=>t.value));
-const _VALID_SKINS=new Set((_SKINS||[]).map(s=>(s.value||s.name).toLowerCase()));
-const _LEGACY_THEME_MAP={
-  slate:{theme:'dark',skin:'slate'},
-  solarized:{theme:'dark',skin:'poseidon'},
-  monokai:{theme:'dark',skin:'sisyphus'},
-  nord:{theme:'dark',skin:'slate'},
-  oled:{theme:'dark',skin:'default'},
-};
-let _systemThemeMq=null;
-let _onSystemThemeChange=null;
-let _resolvedThemeBaseDark=false;
-
+// (The _THEMES/_SKINS/_VALID_* registry now lives at the top of this file — see
+// "Appearance registry" — so the hoisted helpers below can never hit a TDZ.)
 function _normalizeAppearance(theme,skin){
   const rawTheme=typeof theme==='string'?theme.trim().toLowerCase():'';
   const rawSkin=typeof skin==='string'?skin.trim().toLowerCase():'';
