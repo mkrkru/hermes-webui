@@ -7492,11 +7492,11 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 
 /* ── Activity panel (running-chats monitor) ─────────────────────────────── */
 .activity-main-body{flex:1;min-height:0;overflow:hidden;padding:12px;display:flex;flex-direction:column;}
-.activity-grid{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;}
-.activity-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:220px;text-align:center;color:var(--muted);padding:32px;}
+.activity-grid{flex:1;min-height:0;display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;overflow-x:auto;overflow-y:hidden;align-items:stretch;}
+.activity-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:220px;text-align:center;color:var(--muted);padding:32px;}
 .activity-empty-title{font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;}
 .activity-empty-sub{font-size:13px;line-height:1.55;max-width:460px;}
-.activity-card{flex:1 1 0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;}
+.activity-card{flex:0 0 300px;min-height:0;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;}
 .activity-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);flex-shrink:0;min-width:0;}
 .activity-card-ws{font-size:13px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .activity-card-meta{display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
@@ -7521,3 +7521,10 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 .activity-sidebar-row:hover{background:var(--surface-subtle-hover);border-color:var(--border);}
 .activity-sidebar-ws{font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
 .activity-sidebar-title{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.activity-details-toggle .activity-eye-off{display:none;}
+.activity-details-toggle[aria-pressed="false"] .activity-eye-open{display:none;}
+.activity-details-toggle[aria-pressed="false"] .activity-eye-off{display:inline;}
+.activity-details-toggle[aria-pressed="false"]{color:var(--muted);}
+/* "Show details" off: hide the gray supporting text (tool results, thinking,
+   system messages) but keep the rectangular tool-call plaques visible. */
+.activity-grid.hide-details .activity-msg-other{display:none;}

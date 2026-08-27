@@ -13013,6 +13013,32 @@ const _activityPollMs = 2000;
 // sid → { sid, card, wsName, body, signature, msgCount, fetching }
 const _activityCardState = new Map();
 
+// "Show details" toggle: hide the gray supporting text (tool results, thinking,
+// system messages) while keeping the rectangular tool-call plaques. Persisted
+// across reloads.
+const ACTIVITY_SHOW_DETAILS_STORAGE_KEY = 'hermes-activity-show-details';
+let _activityShowDetails = true;
+
+function _restoreActivityShowDetails(){
+  try{
+    const raw = localStorage.getItem(ACTIVITY_SHOW_DETAILS_STORAGE_KEY);
+    if(raw === '0' || raw === 'false') _activityShowDetails = false;
+  }catch(_e){ _activityShowDetails = true; }
+}
+function _applyActivityShowDetails(){
+  const grid = document.getElementById('activityGrid');
+  if(grid) grid.classList.toggle('hide-details', !_activityShowDetails);
+  const btn = document.getElementById('activityDetailsToggle');
+  if(btn) btn.setAttribute('aria-pressed', String(_activityShowDetails));
+}
+function toggleActivityDetails(){
+  _activityShowDetails = !_activityShowDetails;
+  try{ localStorage.setItem(ACTIVITY_SHOW_DETAILS_STORAGE_KEY, _activityShowDetails ? '1' : '0'); }catch(_e){}
+  _applyActivityShowDetails();
+}
+_restoreActivityShowDetails();
+_applyActivityShowDetails();
+
 function _isSessionRunningRow(s) {
   return Boolean(s && s.session_id && (
     s.is_streaming ||
@@ -13092,11 +13118,15 @@ function renderActivityGrid(running) {
   const grid = document.getElementById('activityGrid');
   if (!grid) return;
   const live = new Set(running.map(s => s.session_id));
+  const orderSig = running.map(s => s.session_id).join('|');
+
+  // Drop cards whose session left the running set.
   for (const [sid, st] of Array.from(_activityCardState.entries())) {
     if (!live.has(sid)) { st.card.remove(); _activityCardState.delete(sid); }
   }
-  grid.textContent = '';
+
   if (running.length === 0) {
+    grid.textContent = '';
     const empty = document.createElement('div');
     empty.className = 'activity-empty';
     const title = document.createElement('div');
@@ -13108,13 +13138,38 @@ function renderActivityGrid(running) {
     empty.appendChild(title);
     empty.appendChild(sub);
     grid.appendChild(empty);
+    grid.dataset.count = '0';
+    grid.dataset.orderSig = '';
     _renderActivitySidebar(running);
     return;
   }
+
+  // No structural change (same sessions in the same order): leave the DOM and
+  // each card's scroll position untouched. Content updates happen in
+  // _refreshActivityCard, which only scrolls when new content actually arrives —
+  // otherwise a 2s poll would snap every card back to the top of its transcript.
+  if (grid.dataset.orderSig === orderSig) {
+    _renderActivitySidebar(running);
+    return;
+  }
+
+  // Structural change (order or membership): rebuild, but preserve each
+  // surviving card's scroll position so a reorder doesn't snap it back to the
+  // top. The rebuild is synchronous (no paint between detach and restore), so
+  // there is no visible flash.
+  const scrollBySid = new Map();
+  for (const [sid, st] of _activityCardState) scrollBySid.set(sid, st.body.scrollTop);
+
+  grid.textContent = '';
   const frag = document.createDocumentFragment();
   for (const s of running) frag.appendChild(_activityEnsureCard(s).card);
   grid.appendChild(frag);
+  for (const [sid, top] of scrollBySid) {
+    const st = _activityCardState.get(sid);
+    if (st && st.body) st.body.scrollTop = top;
+  }
   grid.dataset.count = String(running.length);
+  grid.dataset.orderSig = orderSig;
   _renderActivitySidebar(running);
 }
 
