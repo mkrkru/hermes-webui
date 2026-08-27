@@ -144,17 +144,6 @@ def test_sidebar_uses_local_inflight_state_for_immediate_spinner():
     assert "if(typeof renderSessionListFromCache==='function') renderSessionListFromCache();" in messages_js
 
 
-def test_date_group_caret_expanded_down_collapsed_right():
-    assert "caret.textContent='\\u25BE';" in SESSIONS_JS
-    assert ".session-date-caret{" in STYLE_CSS
-    caret_block = STYLE_CSS[
-        STYLE_CSS.find(".session-date-caret{"):
-        STYLE_CSS.find(".session-date-caret.collapsed")
-    ]
-    assert "transform:rotate(0deg);" in caret_block
-    assert ".session-date-caret.collapsed{transform:rotate(-90deg);}" in STYLE_CSS
-
-
 def test_apperror_path_calls_render_session_list():
     """apperror handler must call renderSessionList() to clear the streaming indicator
     immediately rather than waiting for the streaming poll interval."""

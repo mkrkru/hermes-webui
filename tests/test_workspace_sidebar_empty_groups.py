@@ -1,9 +1,9 @@
 """Regression coverage for workspace sidebar grouping + new-chat headers.
 
-Empty registered workspaces must render as always-expanded sidebar group
-headers so every configured workspace stays visible even when it has no chats
-yet. Workspace headers are not collapsible: clicking one creates a new chat
-bound to that workspace explicitly.
+Empty registered workspaces must render as sidebar group headers so every
+configured workspace stays visible even when it has no chats yet. Workspace
+headers are card-style collapse toggles; a per-workspace "New chat" button
+drops to the empty composer and creates the session lazily on the first send.
 """
 
 from __future__ import annotations
@@ -96,31 +96,49 @@ def test_sidebar_grouping_includes_empty_registered_workspaces():
     assert "const unpinnedByWorkspace=[...unpinned].sort((a,b)=>" in js
 
 
-def test_workspace_header_click_creates_new_chat():
+def test_workspace_header_toggles_collapse():
     js = _js()
-    assert "function _attachWorkspaceNewChatAction(hdr, wsPath)" in js
-    assert "newSession(false,{workspace:wsPath})" in js
-    assert "_attachWorkspaceNewChatAction(hdr,g.path)" in js
+    assert "function _attachWorkspaceToggleAction(hdr, wsPath)" in js
+    assert "_workspaceCollapsed" in js
+    assert "_attachWorkspaceToggleAction(hdr,g.path)" in js
     assert "hdr.setAttribute('role','button')" in js
+    assert "hdr.setAttribute('aria-expanded'" in js
 
 
-def test_workspace_groups_are_not_collapsible():
+def test_workspace_new_chat_button_defers_session_creation():
     js = _js()
-    # Collapse machinery removed: no caret, no persisted collapsed state.
-    assert "session-date-caret" not in js
+    assert "function _newChatInWorkspace(wsPath)" in js
+    assert "S._profileSwitchWorkspace=wsPath||null;" in js
+    assert "S.session=null; S.messages=[];" in js
+    assert "function _attachWorkspaceNewChatAction(btn, wsPath)" in js
+    assert "_attachWorkspaceNewChatAction(newChat,g.path)" in js
+    assert "newChat.className='session-workspace-new-chat';" in js
+
+
+def test_workspace_groups_are_collapsible():
+    js = _js()
+    # Re-introduced collapse machinery: caret toggle + in-memory collapsed state.
+    assert "session-date-caret" in js
+    assert "_workspaceCollapsed" in js
+    # Old persisted-collapse machinery stays removed.
     assert "_groupCollapsed" not in js
     assert "hermes-date-groups-collapsed" not in js
-    # Always-expanded: the flat row builder no longer skips collapsed labels.
     assert "if(_groupCollapsed[g.label]) continue;" not in js
 
 
 def test_workspace_header_styles_exist():
     css = STYLE_CSS.read_text(encoding="utf-8")
     assert ".session-date-header .session-date-label" in css
-    assert ".session-date-header.workspace{cursor:pointer;}" in css
+    assert ".session-date-header.workspace{" in css
+    assert ".session-date-header.workspace .session-date-icon{" in css
+    assert ".session-date-header.workspace .session-date-caret{" in css
+    assert ".session-date-group.workspace-group.collapsed .session-date-caret{transform:rotate(-90deg);}" in css
+    assert ".session-date-group.collapsed .session-date-body{display:none;}" in css
+    assert ".session-workspace-new-chat{" in css
+    assert ".session-date-group.workspace-group .session-item{padding-left:16px;}" in css
     # The old "+" quick-create button styles are gone.
     assert ".session-date-quick-create" not in css
-    assert ".session-date-caret" not in css
+    assert ".session-date-plus" not in css
 
 
 def _run_new_session_workspace_case(options: dict) -> dict:

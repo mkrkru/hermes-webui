@@ -1951,13 +1951,25 @@
   @media (prefers-reduced-motion:reduce){.skeleton-empty-hint{animation:none;}}
   .session-item.new-flash{animation:newflash 1.4s ease-out forwards;}
   .session-item.session-list-flip-enter{animation:sessionListFlipIn .28s cubic-bezier(.2,.8,.2,1) backwards;transform-origin:center top;}
-  /* Workspace group headers (always expanded; workspace rows open a new chat) */
+  /* Workspace group headers: card-style collapse toggle with folder icon + caret */
   .session-date-header{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 10px 4px;cursor:default;user-select:none;opacity:.8;transition:opacity .15s;}
   .session-date-header:hover{opacity:1;}
   .session-date-header.pinned{color:var(--accent);}
-  .session-date-header.workspace{cursor:pointer;}
-  .session-date-header .session-date-plus{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;color:var(--muted);opacity:.7;transition:opacity .15s,color .15s;}
-  .session-date-header:hover .session-date-plus{opacity:1;color:var(--accent);}
+  .session-date-header.workspace{cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px;font-weight:600;color:var(--text);gap:9px;padding:9px 10px;margin:2px 4px;border-radius:8px;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s,opacity .15s;}
+  @media (hover:hover){.session-date-header.workspace:hover{background:var(--hover-bg);border-color:var(--border);}}
+  .session-date-header.workspace .session-date-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);}
+  .session-date-header.workspace .session-date-label{font-size:14px;font-weight:600;}
+  .session-date-header.workspace .session-date-caret{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);transition:transform .18s ease,color .15s;}
+  .session-date-header.workspace:hover .session-date-caret{color:var(--accent);}
+  .session-date-group.workspace-group.collapsed .session-date-caret{transform:rotate(-90deg);}
+  /* Collapsed workspace hides its chats + "New chat" button */
+  .session-date-group.collapsed .session-date-body{display:none;}
+  /* "New chat" button above each workspace's chat list */
+  .session-workspace-new-chat{display:flex;align-items:center;gap:7px;width:calc(100% - 8px);margin:0 4px 3px;padding:7px 10px 7px 13px;border:none;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s;}
+  .session-workspace-new-chat:hover{background:var(--hover-bg);color:var(--accent);}
+  .session-workspace-new-chat-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:inherit;}
+  /* Nest chats under their workspace card with a touch more left padding */
+  .session-date-group.workspace-group .session-item{padding-left:16px;}
 
   /* ── Batch select mode ── */
   .session-select-toggle{font-size:11px;padding:6px 10px;color:var(--muted);cursor:pointer;text-align:center;opacity:.6;transition:opacity .15s;user-select:none;margin-top:4px;border-radius:6px;}

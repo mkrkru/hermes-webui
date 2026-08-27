@@ -7716,22 +7716,54 @@ function _attachProjectQuickCreateButton(chip, project){
   chip.appendChild(btn);
 }
 
-function _attachWorkspaceNewChatAction(hdr, wsPath){
-  hdr.title='New chat in this workspace';
+// Workspace group collapse state (path -> collapsed). Non-persistent; resets to
+// expanded on reload. Lives at module scope so it survives the frequent
+// renderSessionListFromCache() repaints (stream/unread/sync updates).
+let _workspaceCollapsed=new Set();
+
+function _attachWorkspaceToggleAction(hdr, wsPath){
+  hdr.title=(typeof t==='function'?t('workspace_toggle_chats'):'')||'Show or hide chats in this workspace';
   hdr.setAttribute('role','button');
-  hdr.setAttribute('aria-label','New chat in this workspace');
-  hdr.onclick=async()=>{
-    if(_newSessionInFlight){
-      try{ await newSession(false,{workspace:wsPath}); }catch(_){}
-      try{ if(typeof _focusComposerOnChatPage==='function') _focusComposerOnChatPage(); }catch(_){}
-      return;
-    }
+  hdr.setAttribute('aria-expanded',String(!_workspaceCollapsed.has(wsPath)));
+  hdr.setAttribute('aria-label',hdr.title);
+  hdr.onclick=(e)=>{
+    e.stopPropagation();
+    if(_workspaceCollapsed.has(wsPath)) _workspaceCollapsed.delete(wsPath);
+    else _workspaceCollapsed.add(wsPath);
+    try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
+  };
+}
+
+// Deferred new chat: bind the target workspace, drop to the empty composer, and
+// let send() create the session on the first message. No eager POST here, so the
+// sidebar does not gain an empty "Untitled" card until the user actually sends.
+function _newChatInWorkspace(wsPath){
+  S._profileSwitchWorkspace=wsPath||null;
+  S.session=null; S.messages=[]; S.entries=[];
+  S.busy=false; S.activeStreamId=null; S.toolCalls=[];
+  if(typeof _hydrateTodosFromSession==='function') _hydrateTodosFromSession(null);
+  try{ localStorage.removeItem('hermes-webui-session'); }catch(_){}
+  try{
+    if(typeof _appRootPath==='function') history.replaceState(null,'',_appRootPath());
+    else history.replaceState(null,'',window.location.pathname.replace(/\/session\/[^/]+/,'')+window.location.search);
+  }catch(_){}
+  const mi=$('msgInner'); if(mi) mi.innerHTML='';
+  const es=$('emptyState'); if(es) es.style.display='';
+  if(typeof renderMessages==='function') renderMessages();
+  if(typeof syncTopbar==='function') syncTopbar();
+  if(typeof syncWorkspacePanelState==='function') syncWorkspacePanelState();
+  try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
+  if(typeof closeMobileSidebar==='function') closeMobileSidebar();
+  try{ if(typeof _focusComposerOnChatPage==='function') _focusComposerOnChatPage(); }catch(_){}
+}
+
+function _attachWorkspaceNewChatAction(btn, wsPath){
+  btn.title=(typeof t==='function'?t('workspace_new_chat'):'')||'New chat';
+  btn.setAttribute('aria-label',btn.title);
+  btn.onclick=async(e)=>{
+    e.stopPropagation();
     try{
-      await newSession(false,{workspace:wsPath});
-      try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
-      try{ if(typeof renderSessionList==='function') void renderSessionList({deferWhileInteracting:false}); }catch(_){}
-      if(typeof closeMobileSidebar==='function') closeMobileSidebar();
-      try{ if(typeof _focusComposerOnChatPage==='function') _focusComposerOnChatPage(); }catch(_){}
+      _newChatInWorkspace(wsPath);
     }catch(err){
       if(typeof showToast==='function') showToast('New chat failed: '+(err&&err.message||err));
     }
@@ -8046,24 +8078,33 @@ function renderSessionListFromCache(){
     wrapper.className='session-date-group';
     const body=document.createElement('div');
     body.className='session-date-body';
+    const isWorkspaceGroup=Boolean(g.isWorkspace&&g.path);
+    if(isWorkspaceGroup) wrapper.classList.add('workspace-group');
     if(!g.isFlat){
-      const isWorkspaceGroup=Boolean(g.isWorkspace&&g.path);
       const hdr=document.createElement('div');
       hdr.className='session-date-header'+(g.isPinned?' pinned':'')+(isWorkspaceGroup?' workspace':'');
+      if(isWorkspaceGroup){
+        const icon=document.createElement('span');
+        icon.className='session-date-icon';
+        icon.setAttribute('aria-hidden','true');
+        icon.innerHTML=li('folder',16);
+        hdr.appendChild(icon);
+      }
       const label=document.createElement('span');
       label.className='session-date-label';
       label.textContent=g.label;
       hdr.appendChild(label);
       if(isWorkspaceGroup){
-        const plus=document.createElement('span');
-        plus.className='session-date-plus';
-        plus.setAttribute('aria-hidden','true');
-        plus.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
-        hdr.appendChild(plus);
-        _attachWorkspaceNewChatAction(hdr,g.path);
+        const caret=document.createElement('span');
+        caret.className='session-date-caret';
+        caret.setAttribute('aria-hidden','true');
+        caret.innerHTML=li('chevron-down',14);
+        hdr.appendChild(caret);
+        _attachWorkspaceToggleAction(hdr,g.path);
       }
       wrapper.appendChild(hdr);
     }
+    if(isWorkspaceGroup&&_workspaceCollapsed.has(g.path)) wrapper.classList.add('collapsed');
     let groupTopPad=0;
     let groupBottomPad=0;
     for(const s of g.items){
@@ -8075,6 +8116,21 @@ function renderSessionListFromCache(){
     }
     if(groupTopPad>0){ body.insertBefore(_sessionVirtualSpacer(groupTopPad,'before'), body.firstChild); }
     if(groupBottomPad>0){ body.appendChild(_sessionVirtualSpacer(groupBottomPad,'after')); }
+    if(isWorkspaceGroup){
+      const newChat=document.createElement('button');
+      newChat.type='button';
+      newChat.className='session-workspace-new-chat';
+      const newChatIcon=document.createElement('span');
+      newChatIcon.className='session-workspace-new-chat-icon';
+      newChatIcon.setAttribute('aria-hidden','true');
+      newChatIcon.innerHTML=li('plus',14);
+      const newChatLabel=document.createElement('span');
+      newChatLabel.textContent=(typeof t==='function'?t('workspace_new_chat'):'')||'New chat';
+      newChat.appendChild(newChatIcon);
+      newChat.appendChild(newChatLabel);
+      _attachWorkspaceNewChatAction(newChat,g.path);
+      body.insertBefore(newChat, body.firstChild);
+    }
     wrapper.appendChild(body);
     list.appendChild(wrapper);
   }
