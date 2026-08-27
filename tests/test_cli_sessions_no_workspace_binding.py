@@ -91,7 +91,7 @@ def test_cli_session_rows_have_no_workspace(fake_hermes_home, monkeypatch):
 
 def test_cli_sessions_render_flat_in_sidebar():
     """sessions.js must render the CLI view as one flat group (no workspace
-    headers) and skip the workspace filter bar for CLI sessions."""
+    headers)."""
     js = (
         pathlib.Path(__file__).parent.parent / "static" / "sessions.js"
     ).read_text(encoding="utf-8")
@@ -99,7 +99,6 @@ def test_cli_sessions_render_flat_in_sidebar():
         "if(unpinned.length) groups.push({label:'',items:unpinned,isFlat:true});"
         in js
     )
-    assert "if(!isCliView){" in js
     assert "if(!g.isFlat){" in js
 
 

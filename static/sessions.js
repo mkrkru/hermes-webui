@@ -6771,6 +6771,11 @@ function _formatSessionDate(timestampMs, nowMs) {
   return date.toLocaleDateString(undefined, options);
 }
 
+function _formatSessionTime(timestampMs) {
+  const date = new Date(timestampMs);
+  return date.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+}
+
 function _formatRelativeSessionTime(timestampMs, nowMs) {
   if (!timestampMs) return t('session_time_unknown');
   nowMs = nowMs || _serverNowMs();
@@ -7739,6 +7744,20 @@ function _attachWorkspaceToggleAction(hdr, wsPath){
 // lifetime as _workspaceCollapsed.
 let _folderCollapsed=new Set();
 
+// "Show only active" filter: when on, the sidebar tree collapses to chats that
+// carry a status — active (open), streaming, awaiting a queued turn, unread, or
+// pending approval/clarify.
+let _showOnlyActiveSessions=false;
+
+function _sessionHasStatus(s, activeSid){
+  if(!s) return false;
+  if(activeSid&&_sessionLineageContainsSession(s,activeSid)) return true;
+  if(_isSessionEffectivelyStreaming(s)||!!s._child_session_streaming) return true;
+  if(_hasUnreadForSession(s)||!!s._child_session_has_unread) return true;
+  if(_sessionAttentionState(s)||_sessionAttentionState({_child:true,attention:s._child_session_attention})) return true;
+  return false;
+}
+
 function _attachFolderToggleAction(hdr, path){
   hdr.title=(typeof t==='function'?t('folder_toggle_contents'):'')||'Show or hide folder contents';
   hdr.setAttribute('role','button');
@@ -7913,39 +7932,28 @@ function renderSessionListFromCache(){
     }
     list.appendChild(sourceTabs);
   }
-  // Workspace filter bar — one chip per distinct workspace in the visible set.
-  // CLI sessions are not workspace-bound, so this bar only renders in the
-  // WebUI view (where sessions carry a real workspace).
-  if(!isCliView){
-    const wsCounts=new Map();
-    for(const s of profileFiltered){
-      const ws=(s&&s.workspace)?String(s.workspace):'';
-      wsCounts.set(ws,(wsCounts.get(ws)||0)+1);
-    }
-    if(wsCounts.size>0){
-      const bar=document.createElement('div');
-      bar.className='project-bar';
-      const allChip=document.createElement('span');
-      allChip.className='project-chip'+(_activeWorkspaceFilter===null?' active':'');
-      allChip.textContent='All';
-      allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};
-      bar.appendChild(allChip);
-      const wsEntries=[...wsCounts.entries()].sort((a,b)=>{
-        const la=(_sessionWorkspaceLabel({workspace:a[0]})||'').toLowerCase();
-        const lb=(_sessionWorkspaceLabel({workspace:b[0]})||'').toLowerCase();
-        return la<lb?-1:1;
-      });
-      for(const [wsPath] of wsEntries){
-        const chip=document.createElement('span');
-        chip.className='project-chip'+(_activeWorkspaceFilter===wsPath?' active':'');
-        chip.textContent=_sessionWorkspaceLabel({workspace:wsPath});
-        if(wsPath) chip.title=wsPath;
-        chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};
-        bar.appendChild(chip);
-      }
-      list.appendChild(bar);
-    }
+  // "Only active" toggle — filter the tree to chats that carry a status
+  // (active / streaming / awaiting / unread / attention).
+  {
+    const activeToggle=document.createElement('button');
+    activeToggle.type='button';
+    activeToggle.className='session-active-only-toggle'+(_showOnlyActiveSessions?' active':'');
+    activeToggle.setAttribute('aria-pressed',String(_showOnlyActiveSessions));
+    const dot=document.createElement('span');
+    dot.className='session-active-only-dot';
+    dot.setAttribute('aria-hidden','true');
+    const lbl=document.createElement('span');
+    lbl.textContent=(typeof t==='function'?t('sidebar_only_active'):'')||'Only active';
+    activeToggle.appendChild(dot);
+    activeToggle.appendChild(lbl);
+    activeToggle.onclick=()=>{
+      _showOnlyActiveSessions=!_showOnlyActiveSessions;
+      try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
+    };
+    list.appendChild(activeToggle);
   }
+  // Workspace filter pills removed — the sidebar is now a pure workspace tree
+  // (folders → workspaces → chats) with no top-level workspace filter bar.
   // Profile filter toggle (show sessions from other profiles).
   // Cross-profile rows live SERVER-SIDE behind ?all_profiles=1, so the toggle
   // must trigger a refetch — there's no client-cached aggregate to slice through.
@@ -7991,9 +7999,12 @@ function renderSessionListFromCache(){
     list.appendChild(empty);
   }
   const orderedSessions=[...sessions].sort(_sessionSidebarSortCompare);
+  const visibleSessions=_showOnlyActiveSessions
+    ? orderedSessions.filter(s=>_sessionHasStatus(s,activeSidForSidebar))
+    : orderedSessions;
   // Separate pinned from unpinned
-  const pinned=orderedSessions.filter(s=>s.pinned);
-  const unpinned=orderedSessions.filter(s=>!s.pinned);
+  const pinned=visibleSessions.filter(s=>s.pinned);
+  const unpinned=visibleSessions.filter(s=>!s.pinned);
   // Date grouping: Pinned / Today / Yesterday / This week / Last week / Older
   const now=_serverNowMs();
   // Group sessions by workspace (alphabetical by friendly name), then by
@@ -8026,7 +8037,7 @@ function renderSessionListFromCache(){
     if(curItems.length) wsGroups.push({label:curLabel,path:curPath,items:curItems,isWorkspace:!!curPath});
     // Registered workspaces with no sessions yet render as empty group headers so
     // every configured workspace stays visible with a quick-create button.
-    if(typeof _workspaceList!=='undefined'&&Array.isArray(_workspaceList)){
+    if(!_showOnlyActiveSessions&&typeof _workspaceList!=='undefined'&&Array.isArray(_workspaceList)){
       const seen=new Set(wsGroups.map(g=>g.path).filter(Boolean));
       for(const w of _workspaceList){
         const p=w&&w.path?String(w.path):'';
@@ -8368,10 +8379,13 @@ function renderSessionListFromCache(){
     else title.textContent=displayTitle;
     title.title=_sessionFullTitleTooltip(rawTitle,cleanTitle,s);
     const tsMs=_sessionTimestampMs(s);
-    const ts=document.createElement('span');
     const hasAttentionState=isStreaming||hasUnread||Boolean(attention);
+    const dateSpan=document.createElement('span');
+    dateSpan.className='session-date'+(hasAttentionState?' is-hidden':'');
+    dateSpan.textContent=hasAttentionState?'':_formatSessionDate(tsMs);
+    const ts=document.createElement('span');
     ts.className='session-time'+(hasAttentionState?' is-hidden':'');
-    ts.textContent=hasAttentionState?'':_formatRelativeSessionTime(tsMs);
+    ts.textContent=hasAttentionState?'':_formatSessionTime(tsMs);
     titleRow.appendChild(title);
     // Project color dot: placed BETWEEN title and timestamp, not inside the
     // title span. Inside the title span it would be clipped by the ellipsis
@@ -8453,27 +8467,9 @@ function renderSessionListFromCache(){
       chip.dataset.sourceKey=_sourceKeyForSession(s)||'cli';
       titleRow.appendChild(chip);
     }
+    titleRow.appendChild(dateSpan);
     titleRow.appendChild(ts);
     sessionText.appendChild(titleRow);
-    if(density==='detailed'){
-      const metaBits=[];
-      const msgCount=typeof s.message_count==='number'?s.message_count:0;
-      const msgLabel=(typeof t==='function')
-        ? t('session_meta_messages', msgCount)
-        : `${msgCount} msg${msgCount===1?'':'s'}`;
-      metaBits.push(msgLabel);
-      if(childCount>0) metaBits.push(t('session_meta_children', childCount));
-      const modelMeta=_formatSessionModelWithGateway(s);
-      if(modelMeta) metaBits.push(modelMeta);
-      const sourceLabel=_getChannelLabel(s);
-      if(sourceLabel&&(s.is_cli_session||_isMessagingSession(s))) metaBits.push(sourceLabel);
-      if(readOnly) metaBits.push('read-only');
-      if(_showAllProfiles&&s.profile) metaBits.push(s.profile);
-      const meta=document.createElement('div');
-      meta.className='session-meta';
-      meta.textContent=metaBits.join(' · ');
-      sessionText.appendChild(meta);
-    }
     const contentPreview=titleMatched?'':_sessionSearchContentPreview(s,searchQueryRaw);
     if(contentPreview){
       const preview=document.createElement('div');

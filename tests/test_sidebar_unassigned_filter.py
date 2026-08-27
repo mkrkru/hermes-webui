@@ -1,9 +1,9 @@
-"""Regression tests for the sidebar workspace filter.
+"""Regression tests for the sidebar workspace filter state.
 
-The old project filter (All / Unassigned / per-project chips) was replaced by a
-workspace filter: one chip per distinct workspace present in the visible session
-set, plus an "All" chip. Sessions without a workspace fall under a "No
-workspace" chip. This file pins that contract.
+The top-level workspace filter pills (All / per-workspace chips) were removed —
+the sidebar is now a pure workspace tree. The filter state and predicate remain
+declared but are inert (no UI sets the active workspace filter anymore). This
+file pins that contract.
 """
 
 from __future__ import annotations
@@ -39,11 +39,12 @@ def test_workspace_filter_predicate_reference_rows():
     )
 
 
-def test_workspace_filter_chips_render():
+def test_workspace_filter_chips_removed():
     js = _js()
-    assert "const wsCounts=new Map();" in js
-    assert "allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};" in js
-    assert "chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};" in js
+    # The top-level workspace filter pills (project-bar) are gone.
+    assert "const wsCounts=new Map();" not in js
+    assert "allChip.onclick=()=>{_setActiveWorkspaceFilter(null);};" not in js
+    assert "chip.onclick=()=>{_setActiveWorkspaceFilter(wsPath);};" not in js
 
 
 def test_workspace_group_label_helper():

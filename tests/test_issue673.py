@@ -6,8 +6,9 @@ Covers:
 - static/index.html: settingsSidebarDensity field and i18n wiring present
 - static/boot.js: boot path applies window._sidebarDensity with compact default
 - static/panels.js: load/save settings wire sidebar_density correctly
-- static/sessions.js: detailed mode renders message count + model, and profile
-  only when the "show all profiles" toggle is active
+- static/sessions.js: density gates lineage metadata; the detailed meta line
+  (message count / model / profile) was removed in favour of title + date +
+  time + status rows
 - static/i18n.js: locale keys exist for all shipped locales
 - Integration: GET/POST /api/settings round-trip sidebar_density
 """
@@ -99,23 +100,19 @@ class TestSidebarDensityBootAndPanels(unittest.TestCase):
 
 
 class TestSidebarDensitySessionRendering(unittest.TestCase):
-    def test_detailed_mode_branch_present(self):
+    def test_density_still_gates_lineage_metadata(self):
         self.assertIn(
             "const density=(window._sidebarDensity==='detailed'?'detailed':'compact');",
             SESSIONS_JS,
         )
-        self.assertIn("if(density==='detailed')", SESSIONS_JS)
+        self.assertIn("const showLineageMetadata=density==='detailed';", SESSIONS_JS)
 
-    def test_detailed_mode_uses_message_count_and_model(self):
-        self.assertIn("typeof s.message_count==='number'?s.message_count:0", SESSIONS_JS)
-        self.assertIn("const modelMeta=_formatSessionModelWithGateway(s);", SESSIONS_JS)
-        self.assertIn("if(modelMeta) metaBits.push(modelMeta);", SESSIONS_JS)
-        self.assertIn("t('session_meta_messages', msgCount)", SESSIONS_JS)
-
-    def test_profile_only_when_show_all_profiles(self):
-        self.assertIn(
-            "if(_showAllProfiles&&s.profile) metaBits.push(s.profile);", SESSIONS_JS
-        )
+    def test_meta_line_removed(self):
+        # The detailed-density meta line (message count / model / source / profile)
+        # was removed — chat rows are now title + date + time + status only.
+        self.assertNotIn("metaBits", SESSIONS_JS)
+        self.assertNotIn("meta.className='session-meta';", SESSIONS_JS)
+        self.assertNotIn("t('session_meta_messages', msgCount)", SESSIONS_JS)
 
     def test_session_meta_css_hook_present(self):
         self.assertIn(".session-meta", STYLE_CSS)

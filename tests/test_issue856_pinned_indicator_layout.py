@@ -83,41 +83,27 @@ def test_timestamp_hidden_when_attention_state_is_present():
     assert "+(hasUnread?' unread':'')+(attention?' needs-attention':'')+attentionClass" in SESSIONS_JS
     assert "const hasAttentionState=isStreaming||hasUnread||Boolean(attention);" in SESSIONS_JS
     assert "ts.className='session-time'+(hasAttentionState?' is-hidden':'');" in SESSIONS_JS
-    assert "ts.textContent=hasAttentionState?'':_formatRelativeSessionTime(tsMs);" in SESSIONS_JS
-    assert ".session-time.is-hidden{display:none;}" in STYLE_CSS
-    # padding-right was 86px when the timestamp was position:absolute. Now that
-    # the timestamp lives in the flex flow of .session-title-row, the rest
-    # state needs no right reservation; hover/streaming/unread/menu-open/
-    # focus-within all expand to 40px to make room for the absolute action
-    # button + attention indicator.
+    assert "ts.textContent=hasAttentionState?'':_formatSessionTime(tsMs);" in SESSIONS_JS
+    assert ".session-time.is-hidden,.session-date.is-hidden{display:none;}" in STYLE_CSS
     assert ".session-item{padding:8px 8px;" in STYLE_CSS
-    # PR #1110: :hover removed from the COMBINED padding-right rule (touch layout-shift fix).
-    # Instead, hover padding is restored via @media (hover:hover) which only applies to
-    # devices with a real hover capability (mouse). Touch/iPad devices satisfy hover:none
-    # and skip that block, preventing the layout-reflow mid-tap bug.
     assert ".session-item.streaming,.session-item.unread,.session-item.needs-attention,.session-item:focus-within,.session-item.menu-open{padding-right:40px;}" in STYLE_CSS
-    # Desktop hover padding restored via media query (mouse devices only)
     assert "@media (hover:hover)" in STYLE_CSS
     assert ".session-item:hover{padding-right:40px;}" in STYLE_CSS
     assert ".session-item{min-height:44px;padding:10px 40px 10px 12px;}" in STYLE_CSS
-    # Timestamp now uses margin-left:auto inside the flex row instead of
-    # absolute positioning. This stops the title's flex:1 bound from running
-    # underneath the timestamp and lets the project dot sit beside it.
-    # Anchor on the canonical UNSCOPED `.session-time{` rule (start-of-line) —
-    # a skin-scoped variant like `:root[data-skin="graphite"] .session-item.active
-    # .session-time{` can precede it and would otherwise widen the slice into
-    # unrelated skin rules that legitimately use position:absolute.
+    # Date + time both live in the flex flow of .session-title-row. The date span
+    # carries margin-left:auto (right-aligned); the time span follows it. Anchor
+    # on the canonical UNSCOPED `.session-date{` rule (start-of-line).
     import re as _re
-    _m = _re.search(r"(?m)^\s*\.session-time\{", STYLE_CSS)
-    assert _m, "canonical unscoped .session-time{ rule not found"
-    session_time_block = STYLE_CSS[
+    _m = _re.search(r"(?m)^\s*\.session-date\{", STYLE_CSS)
+    assert _m, "canonical unscoped .session-date{ rule not found"
+    session_date_block = STYLE_CSS[
         _m.start():
         STYLE_CSS.find("}", _m.start())
     ]
-    assert "position:absolute" not in session_time_block, (
-        "Timestamp must live in flex flow (margin-left:auto), not absolute"
+    assert "position:absolute" not in session_date_block, (
+        "Date must live in flex flow (margin-left:auto), not absolute"
     )
-    assert "margin-left:auto" in session_time_block
+    assert "margin-left:auto" in session_date_block
     assert ".session-item:hover .session-time" in STYLE_CSS
     assert ".session-item.streaming:not(:hover):not(:focus-within):not(.menu-open) .session-actions" in STYLE_CSS
     assert ".session-item.unread:not(:hover):not(:focus-within):not(.menu-open) .session-actions" in STYLE_CSS

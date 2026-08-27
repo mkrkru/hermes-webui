@@ -1833,16 +1833,25 @@
      the title's flex:1 bound stops at the timestamp's left edge and stops
      running underneath it. margin-left:auto pushes it to the row's right
      edge, keeping the visual position the user already expects. */
-  .session-time{
+  .session-date{
     display:inline-flex;
     margin-left:auto;
+    margin-right:4px;
     color:var(--muted);
     font-size:10px;
     white-space:nowrap;
     flex-shrink:0;
   }
-  .session-time.is-hidden{display:none;}
-  .session-item:hover .session-time,.session-item:focus-within .session-time,.session-item.menu-open .session-time{display:none;}
+  .session-time{
+    display:inline-flex;
+    color:var(--muted);
+    font-size:10px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .session-time.is-hidden,.session-date.is-hidden{display:none;}
+  .session-item:hover .session-time,.session-item:focus-within .session-time,.session-item.menu-open .session-time,
+  .session-item:hover .session-date,.session-item:focus-within .session-date,.session-item.menu-open .session-date{display:none;}
   /* ── Session action trigger + dropdown ── */
   .session-actions{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s ease;}
   .session-item:hover .session-actions,.session-item:focus-within .session-actions,.session-item.menu-open .session-actions{opacity:1;pointer-events:auto;}
@@ -1955,7 +1964,7 @@
   .session-date-header{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 10px 4px;cursor:default;user-select:none;opacity:.8;transition:opacity .15s;}
   .session-date-header:hover{opacity:1;}
   .session-date-header.pinned{color:var(--accent);}
-  .session-date-header.workspace,.session-date-header.folder{cursor:pointer;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--text);gap:6px;padding:4px 8px;margin:1px 4px;border-radius:6px;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s,opacity .15s;}
+  .session-date-header.workspace,.session-date-header.folder{cursor:pointer;position:relative;text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--text);gap:6px;padding:4px 6px;margin:1px 0;border-radius:6px;border:1px solid transparent;transition:background .15s,color .15s,border-color .15s,opacity .15s;}
   @media (hover:hover){.session-date-header.workspace:hover,.session-date-header.folder:hover{background:var(--hover-bg);border-color:var(--border);}}
   .session-date-header.workspace .session-date-icon,.session-date-header.folder .session-date-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);}
   .session-date-header.workspace .session-date-label,.session-date-header.folder .session-date-label{font-size:12.5px;font-weight:600;}
@@ -1964,8 +1973,11 @@
   .session-date-group.collapsed .session-date-caret{transform:rotate(-90deg);}
   /* Collapsed node hides its body (chats / nested workspaces) */
   .session-date-group.collapsed .session-date-body{display:none;}
-  /* VS Code-style tree indentation: one level per nesting */
-  .session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{padding-left:14px;}
+  /* VS Code-style tree indentation: one level per nesting, plus vertical guide
+     lines (trunk) with a horizontal elbow to each nested node. */
+  .session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{position:relative;padding-left:16px;}
+  .session-date-group.workspace-group>.session-date-body::before,.session-date-group.folder-group>.session-date-body::before{content:"";position:absolute;left:8px;top:0;bottom:10px;width:1px;background:var(--border);opacity:.55;}
+  .session-date-group.workspace-group>.session-date-body>.session-item::after,.session-date-group.folder-group>.session-date-body>.workspace-group>.session-date-header::after{content:"";position:absolute;left:-8px;top:50%;width:8px;height:0;border-top:1px solid var(--border);opacity:.55;}
   /* "New chat" button above each workspace's chat list */
   .session-workspace-new-chat{display:flex;align-items:center;gap:6px;width:100%;margin:0 0 2px;padding:4px 8px;border:none;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s;}
   .session-workspace-new-chat:hover{background:var(--hover-bg);color:var(--accent);}
@@ -5887,6 +5899,12 @@ main.main > #mainPlugin{display:none;}
 .session-source-tab{flex:1;min-width:0;border:1px solid var(--border2);border-radius:10px;background:var(--input-bg);color:var(--muted);font-size:10px;font-weight:700;line-height:1.2;padding:5px 6px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s,color .15s,border-color .15s;}
 .session-source-tab:hover{background:rgba(255,255,255,.08);color:var(--text);}
 .session-source-tab.active{background:var(--accent-bg);color:var(--accent-text);border-color:var(--accent-bg);}
+/* "Only active" toggle — filters the tree to chats that carry a status */
+.session-active-only-toggle{display:inline-flex;align-items:center;gap:6px;margin:0 10px 8px;padding:4px 8px;border:1px solid var(--border2);border-radius:10px;background:var(--input-bg);color:var(--muted);font-size:10px;font-weight:700;line-height:1.2;cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .15s,color .15s,border-color .15s;}
+.session-active-only-toggle:hover{background:rgba(255,255,255,.08);color:var(--text);}
+.session-active-only-toggle.active{background:var(--accent-bg);color:var(--accent-text);border-color:var(--accent-bg);}
+.session-active-only-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;opacity:.7;}
+.session-active-only-toggle.active .session-active-only-dot{background:var(--success,#22c55e);opacity:1;}
 .session-empty-note{padding:20px 14px;color:var(--muted);font-size:12px;text-align:center;opacity:.7;}
 .session-list-error{margin:4px 10px 8px;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;opacity:1;}
 .session-list-error>div:first-child{font-size:12px;font-weight:600;line-height:1.35;word-break:break-word;}

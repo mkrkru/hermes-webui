@@ -119,6 +119,18 @@ def test_workspace_folder_grouping():
     assert "if(g.isFolder&&Array.isArray(g.children))" in js
 
 
+def test_show_only_active_toggle():
+    js = _js()
+    assert "let _showOnlyActiveSessions=false;" in js
+    assert "function _sessionHasStatus(s, activeSid)" in js
+    assert "const visibleSessions=_showOnlyActiveSessions" in js
+    assert "if(!_showOnlyActiveSessions&&typeof _workspaceList" in js
+    assert "session-active-only-toggle" in js
+    css = STYLE_CSS.read_text(encoding="utf-8")
+    assert ".session-active-only-toggle{" in css
+    assert ".session-active-only-dot{" in css
+
+
 def test_workspace_new_chat_button_defers_session_creation():
     js = _js()
     assert "function _newChatInWorkspace(wsPath)" in js
@@ -149,7 +161,10 @@ def test_workspace_header_styles_exist():
     assert ".session-date-header.workspace .session-date-caret," in css
     assert ".session-date-group.collapsed .session-date-caret{transform:rotate(-90deg);}" in css
     assert ".session-date-group.collapsed .session-date-body{display:none;}" in css
-    assert ".session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{padding-left:14px;}" in css
+    assert ".session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{position:relative;padding-left:16px;}" in css
+    # Tree guide lines: vertical trunk + horizontal elbow to each nested node.
+    assert ".session-date-group.workspace-group>.session-date-body::before,.session-date-group.folder-group>.session-date-body::before{" in css
+    assert ".session-date-group.workspace-group>.session-date-body>.session-item::after,.session-date-group.folder-group>.session-date-body>.workspace-group>.session-date-header::after{" in css
     assert ".session-workspace-new-chat{" in css
     assert ".session-date-group.workspace-group .session-item{padding:6px 8px;}" in css
     # The old "+" quick-create button styles are gone.
