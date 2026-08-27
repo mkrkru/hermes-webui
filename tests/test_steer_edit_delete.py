@@ -61,6 +61,18 @@ def test_steer_delete_i18n_key_added_to_en():
     assert "steer_delete: 'Delete steer'," in i18n
 
 
+def test_steer_indicators_persist_across_reload():
+    src = _cmds()
+    # Pending steer indicators are persisted per session and restored on load so
+    # a mid-run page reload doesn't drop queued steers.
+    assert "function _syncSteerIndicatorsPersistence(sid)" in src
+    assert "function _restoreSteerIndicators(sid)" in src
+    assert "hermes-steer-indicators-" in src
+    assert "sessionStorage" in src
+    sessions_js = (ROOT / "static" / "sessions.js").read_text(encoding="utf-8")
+    assert "if(typeof _restoreSteerIndicators==='function') _restoreSteerIndicators(sid);" in sessions_js
+
+
 def _delete_block() -> str:
     src = _cmds()
     start = src.index("function _remainingPendingSteerTexts")

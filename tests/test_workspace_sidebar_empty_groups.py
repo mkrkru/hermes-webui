@@ -100,9 +100,23 @@ def test_workspace_header_toggles_collapse():
     js = _js()
     assert "function _attachWorkspaceToggleAction(hdr, wsPath)" in js
     assert "_workspaceCollapsed" in js
-    assert "_attachWorkspaceToggleAction(hdr,g.path)" in js
     assert "hdr.setAttribute('role','button')" in js
     assert "hdr.setAttribute('aria-expanded'" in js
+
+
+def test_workspace_folder_grouping():
+    js = _js()
+    # Parent-directory grouping (one level) + folder collapse machinery.
+    assert "function _workspaceParentDir(path)" in js
+    assert "function _workspaceParentLeaf(parentDir)" in js
+    assert "function _attachFolderToggleAction(hdr, path)" in js
+    assert "_folderCollapsed" in js
+    # Folder nodes only when a parent dir holds ≥2 workspaces.
+    assert "if(fg.children.length>=2) treeNodes.push({label:fg.label,path:fg.path,isFolder:true,children:fg.children});" in js
+    assert "const _renderFolderNode=(g)=>{" in js
+    assert "const _renderWorkspaceNode=(g)=>{" in js
+    # Flat row collection recurses into folder children.
+    assert "if(g.isFolder&&Array.isArray(g.children))" in js
 
 
 def test_workspace_new_chat_button_defers_session_creation():
@@ -129,13 +143,15 @@ def test_workspace_groups_are_collapsible():
 def test_workspace_header_styles_exist():
     css = STYLE_CSS.read_text(encoding="utf-8")
     assert ".session-date-header .session-date-label" in css
-    assert ".session-date-header.workspace{" in css
-    assert ".session-date-header.workspace .session-date-icon{" in css
-    assert ".session-date-header.workspace .session-date-caret{" in css
-    assert ".session-date-group.workspace-group.collapsed .session-date-caret{transform:rotate(-90deg);}" in css
+    assert ".session-date-header.workspace," in css
+    assert ".session-date-header.folder{" in css
+    assert ".session-date-header.workspace .session-date-icon," in css
+    assert ".session-date-header.workspace .session-date-caret," in css
+    assert ".session-date-group.collapsed .session-date-caret{transform:rotate(-90deg);}" in css
     assert ".session-date-group.collapsed .session-date-body{display:none;}" in css
+    assert ".session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{padding-left:14px;}" in css
     assert ".session-workspace-new-chat{" in css
-    assert ".session-date-group.workspace-group .session-item{padding-left:16px;}" in css
+    assert ".session-date-group.workspace-group .session-item{padding:6px 8px;}" in css
     # The old "+" quick-create button styles are gone.
     assert ".session-date-quick-create" not in css
     assert ".session-date-plus" not in css

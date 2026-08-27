@@ -2317,6 +2317,7 @@ async function loadSession(sid){
       setStatus('');
       setComposerStatus('');
       syncTopbar();renderMessages(sameSessionForceReload?{preserveScroll:true}:undefined);
+      if(typeof _restoreSteerIndicators==='function') _restoreSteerIndicators(sid);
       const restoredAnchorScene=activeStreamId&&typeof window!=='undefined'
         ? ((typeof window._renderLiveAnchorActivitySceneForStream==='function'&&window._renderLiveAnchorActivitySceneForStream(activeStreamId, sid))||
           _renderRuntimeJournalAnchorActivityScene(activeStreamId, sid))
@@ -7734,6 +7735,36 @@ function _attachWorkspaceToggleAction(hdr, wsPath){
   };
 }
 
+// Folder group collapse state (parent-dir path -> collapsed). Same non-persistent
+// lifetime as _workspaceCollapsed.
+let _folderCollapsed=new Set();
+
+function _attachFolderToggleAction(hdr, path){
+  hdr.title=(typeof t==='function'?t('folder_toggle_contents'):'')||'Show or hide folder contents';
+  hdr.setAttribute('role','button');
+  hdr.setAttribute('aria-expanded',String(!_folderCollapsed.has(path)));
+  hdr.setAttribute('aria-label',hdr.title);
+  hdr.onclick=(e)=>{
+    e.stopPropagation();
+    if(_folderCollapsed.has(path)) _folderCollapsed.delete(path);
+    else _folderCollapsed.add(path);
+    try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
+  };
+}
+
+// One-level parent-directory grouping for the workspace tree: /code/foo and
+// /code/bar share parent /code and render inside a "code" folder node.
+function _workspaceParentDir(path){
+  const p=String(path||'').replace(/\/+$/,'');
+  if(!p||p==='/') return '';
+  const idx=p.lastIndexOf('/');
+  return idx>0?p.slice(0,idx):'';
+}
+function _workspaceParentLeaf(parentDir){
+  const leaf=String(parentDir||'').split('/').filter(Boolean).pop();
+  return leaf||String(parentDir||'');
+}
+
 // Deferred new chat: bind the target workspace, drop to the empty composer, and
 // let send() create the session on the first message. No eager POST here, so the
 // sidebar does not gain an empty "Untitled" card until the user actually sends.
@@ -8011,12 +8042,43 @@ function renderSessionListFromCache(){
       const lb=(b.label||'').toLowerCase();
       return la<lb?-1:1;
     });
-    for(const g of wsGroups) groups.push(g);
+    // Group workspaces by their parent directory (one level) into folder nodes,
+    // VS Code-style: /code/foo and /code/bar render inside a "code" folder.
+    const folderMap=new Map();
+    const topLevelWs=[];
+    for(const g of wsGroups){
+      const parent=_workspaceParentDir(g.path);
+      if(parent){
+        if(!folderMap.has(parent)) folderMap.set(parent,{label:_workspaceParentLeaf(parent),path:parent,children:[]});
+        folderMap.get(parent).children.push(g);
+      }else{
+        topLevelWs.push(g);
+      }
+    }
+    const treeNodes=[];
+    for(const [parent,fg] of folderMap){
+      // A folder only exists when it holds ≥2 workspaces; a lone child flattens
+      // back to the top level to avoid a redundant single-item folder.
+      if(fg.children.length>=2) treeNodes.push({label:fg.label,path:fg.path,isFolder:true,children:fg.children});
+      else topLevelWs.push(...fg.children);
+    }
+    for(const g of topLevelWs) treeNodes.push(g);
+    treeNodes.sort((a,b)=>{
+      const la=(a.label||'').toLowerCase();
+      const lb=(b.label||'').toLowerCase();
+      return la<lb?-1:1;
+    });
+    for(const g of treeNodes) groups.push(g);
   }
   const flatSessionRows=[];
-  for(const g of groups){
-    for(const s of g.items){ flatSessionRows.push({group:g,session:s}); }
-  }
+  const _collectSessionRows=(g)=>{
+    if(g.isFolder&&Array.isArray(g.children)){
+      for(const child of g.children) _collectSessionRows(child);
+    }else if(Array.isArray(g.items)){
+      for(const s of g.items){ flatSessionRows.push({group:g,session:s}); }
+    }
+  };
+  for(const g of groups) _collectSessionRows(g);
   _sessionVisibleSidebarIds=flatSessionRows.map(row=>row.session&&row.session.session_id).filter(Boolean);
   for(const row of flatSessionRows){
     const s=row.session;
@@ -8068,43 +8130,14 @@ function renderSessionListFromCache(){
   list.dataset.sessionVirtualFilter=q;
   list.dataset.sessionVirtualStart=String(virtualWindow.start);
   list.dataset.sessionVirtualEnd=String(virtualWindow.end);
-  // Render groups with always-expanded headers. Large sidebars render only the
-  // current session-row window plus top/bottom spacers inside each group body;
-  // headers remain real DOM so pin/workspace grouping and clicks survive.
-  // Workspace headers double as "new chat in this workspace" buttons.
+  // Render a VS Code-style workspace tree: folder nodes wrap workspace nodes
+  // which wrap their chats. Headers are real DOM so pin/folder/workspace
+  // grouping and collapse clicks survive; only the chat rows are virtualized.
   let globalSessionRowIndex=0;
-  for(const g of groups){
-    const wrapper=document.createElement('div');
-    wrapper.className='session-date-group';
-    const body=document.createElement('div');
-    body.className='session-date-body';
-    const isWorkspaceGroup=Boolean(g.isWorkspace&&g.path);
-    if(isWorkspaceGroup) wrapper.classList.add('workspace-group');
-    if(!g.isFlat){
-      const hdr=document.createElement('div');
-      hdr.className='session-date-header'+(g.isPinned?' pinned':'')+(isWorkspaceGroup?' workspace':'');
-      if(isWorkspaceGroup){
-        const icon=document.createElement('span');
-        icon.className='session-date-icon';
-        icon.setAttribute('aria-hidden','true');
-        icon.innerHTML=li('folder',16);
-        hdr.appendChild(icon);
-      }
-      const label=document.createElement('span');
-      label.className='session-date-label';
-      label.textContent=g.label;
-      hdr.appendChild(label);
-      if(isWorkspaceGroup){
-        const caret=document.createElement('span');
-        caret.className='session-date-caret';
-        caret.setAttribute('aria-hidden','true');
-        caret.innerHTML=li('chevron-down',14);
-        hdr.appendChild(caret);
-        _attachWorkspaceToggleAction(hdr,g.path);
-      }
-      wrapper.appendChild(hdr);
-    }
-    if(isWorkspaceGroup&&_workspaceCollapsed.has(g.path)) wrapper.classList.add('collapsed');
+
+  // Render a group's chats (and, for workspaces, the "New chat" button) into
+  // `body`, applying the virtual-window row filter + top/bottom spacers.
+  const _renderChatBody=(body,g)=>{
     let groupTopPad=0;
     let groupBottomPad=0;
     for(const s of g.items){
@@ -8116,7 +8149,7 @@ function renderSessionListFromCache(){
     }
     if(groupTopPad>0){ body.insertBefore(_sessionVirtualSpacer(groupTopPad,'before'), body.firstChild); }
     if(groupBottomPad>0){ body.appendChild(_sessionVirtualSpacer(groupBottomPad,'after')); }
-    if(isWorkspaceGroup){
+    if(g.isWorkspace&&g.path){
       const newChat=document.createElement('button');
       newChat.type='button';
       newChat.className='session-workspace-new-chat';
@@ -8131,8 +8164,79 @@ function renderSessionListFromCache(){
       _attachWorkspaceNewChatAction(newChat,g.path);
       body.insertBefore(newChat, body.firstChild);
     }
+  };
+
+  // Collapsible tree-node header: caret on the left (VS Code style), then a
+  // folder icon, then the label.
+  const _renderTreeHeader=(g,cls,attachToggle)=>{
+    const hdr=document.createElement('div');
+    hdr.className='session-date-header'+cls;
+    const caret=document.createElement('span');
+    caret.className='session-date-caret';
+    caret.setAttribute('aria-hidden','true');
+    caret.innerHTML=li('chevron-down',14);
+    const icon=document.createElement('span');
+    icon.className='session-date-icon';
+    icon.setAttribute('aria-hidden','true');
+    icon.innerHTML=li('folder',16);
+    const label=document.createElement('span');
+    label.className='session-date-label';
+    label.textContent=g.label;
+    hdr.appendChild(caret);
+    hdr.appendChild(icon);
+    hdr.appendChild(label);
+    attachToggle(hdr,g.path);
+    return hdr;
+  };
+
+  const _renderWorkspaceNode=(g)=>{
+    const wrapper=document.createElement('div');
+    wrapper.className='session-date-group workspace-group';
+    wrapper.appendChild(_renderTreeHeader(g,' workspace',_attachWorkspaceToggleAction));
+    if(_workspaceCollapsed.has(g.path)) wrapper.classList.add('collapsed');
+    const body=document.createElement('div');
+    body.className='session-date-body';
+    _renderChatBody(body,g);
     wrapper.appendChild(body);
-    list.appendChild(wrapper);
+    return wrapper;
+  };
+
+  const _renderFolderNode=(g)=>{
+    const wrapper=document.createElement('div');
+    wrapper.className='session-date-group folder-group';
+    wrapper.appendChild(_renderTreeHeader(g,' folder',_attachFolderToggleAction));
+    if(_folderCollapsed.has(g.path)) wrapper.classList.add('collapsed');
+    const body=document.createElement('div');
+    body.className='session-date-body';
+    for(const child of g.children) body.appendChild(_renderWorkspaceNode(child));
+    wrapper.appendChild(body);
+    return wrapper;
+  };
+
+  for(const g of groups){
+    if(g.isFolder&&Array.isArray(g.children)){
+      list.appendChild(_renderFolderNode(g));
+    }else if(g.isWorkspace&&g.path){
+      list.appendChild(_renderWorkspaceNode(g));
+    }else{
+      // Pinned group and the CLI flat list keep a plain header (no caret/icon).
+      const wrapper=document.createElement('div');
+      wrapper.className='session-date-group';
+      const body=document.createElement('div');
+      body.className='session-date-body';
+      if(!g.isFlat){
+        const hdr=document.createElement('div');
+        hdr.className='session-date-header'+(g.isPinned?' pinned':'');
+        const label=document.createElement('span');
+        label.className='session-date-label';
+        label.textContent=g.label;
+        hdr.appendChild(label);
+        wrapper.appendChild(hdr);
+      }
+      _renderChatBody(body,g);
+      wrapper.appendChild(body);
+      list.appendChild(wrapper);
+    }
   }
   if(virtualAnchorScrollTop!==null){
     list.scrollTop=virtualAnchorScrollTop;

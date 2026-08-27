@@ -1450,6 +1450,41 @@ function _steerBodyLabel(text){
   return text.length>120?text.slice(0,117)+'…':text;
 }
 
+// Pending steer indicators ("Steer" badges) survive a page reload: persist their
+// texts per session in sessionStorage and re-show them on load, so a mid-run
+// refresh doesn't silently drop queued steers the user is waiting to see applied.
+// sessionStorage is scoped to the tab, so it survives F5 but not tab close —
+// exactly the "reload" case, with no stale data leaking across browser sessions.
+function _steerIndicatorsKey(sid){
+  return 'hermes-steer-indicators-'+sid;
+}
+function _syncSteerIndicatorsPersistence(sid){
+  if(!sid) return;
+  const inner=document.getElementById('msgInner');
+  const texts=[];
+  if(inner){
+    inner.querySelectorAll('.steer-indicator').forEach(el=>{
+      const t=String(el.dataset.steerText||'').trim();
+      if(t) texts.push(t);
+    });
+  }
+  const key=_steerIndicatorsKey(sid);
+  try{
+    if(texts.length) sessionStorage.setItem(key,JSON.stringify(texts));
+    else sessionStorage.removeItem(key);
+  }catch(_){}
+}
+function _restoreSteerIndicators(sid){
+  if(!sid) return;
+  let texts=[];
+  try{
+    const raw=sessionStorage.getItem(_steerIndicatorsKey(sid));
+    if(raw) texts=JSON.parse(raw);
+  }catch(_){ texts=[]; }
+  if(!Array.isArray(texts)) texts=[];
+  for(const t of texts){ if(t) _showSteerIndicator(t); }
+}
+
 function _showSteerIndicator(text){
   const inner=document.getElementById('msgInner');
   if(!inner) return null;
@@ -1469,6 +1504,7 @@ function _showSteerIndicator(text){
   el.addEventListener('click',()=>_beginSteerEdit(el));
   inner.appendChild(el);
   if(typeof scrollToBottom==='function') scrollToBottom();
+  if(typeof _syncSteerIndicatorsPersistence==='function') _syncSteerIndicatorsPersistence(_steerOwnerSid());
   return el;
 }
 
@@ -1544,6 +1580,7 @@ async function _commitSteerEdit(el,newText,original){
   } else {
     _restoreSteerBody(el,original);
   }
+  if(typeof _syncSteerIndicatorsPersistence==='function') _syncSteerIndicatorsPersistence(_steerOwnerSid());
   _flushSteerQueue();
 }
 
@@ -1554,6 +1591,7 @@ async function _cancelSteerEdit(el,original){
   if(wasEditing) _steerEditActive=false;
   await _steerModeRequest('cancel');
   el.remove();
+  if(typeof _syncSteerIndicatorsPersistence==='function') _syncSteerIndicatorsPersistence(_steerOwnerSid());
   _flushSteerQueue();
 }
 
@@ -1583,6 +1621,7 @@ async function _deleteSteerEdit(el){
   }else{
     await _steerModeRequest('cancel');
   }
+  if(typeof _syncSteerIndicatorsPersistence==='function') _syncSteerIndicatorsPersistence(_steerOwnerSid());
   _flushSteerQueue();
 }
 
@@ -1620,6 +1659,7 @@ function _dismissSteerIndicators(){
     _steerEditActive=false;
     _steerQueue=[];
   }
+  if(typeof _syncSteerIndicatorsPersistence==='function') _syncSteerIndicatorsPersistence(_steerOwnerSid());
 }
 
 function _showSteerRecovery(msg, explicitSteer, fallback) {
