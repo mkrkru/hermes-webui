@@ -1833,25 +1833,16 @@
      the title's flex:1 bound stops at the timestamp's left edge and stops
      running underneath it. margin-left:auto pushes it to the row's right
      edge, keeping the visual position the user already expects. */
-  .session-date{
-    display:inline-flex;
-    margin-left:auto;
-    margin-right:4px;
-    color:var(--muted);
-    font-size:10px;
-    white-space:nowrap;
-    flex-shrink:0;
-  }
   .session-time{
     display:inline-flex;
+    margin-left:auto;
     color:var(--muted);
     font-size:10px;
     white-space:nowrap;
     flex-shrink:0;
   }
-  .session-time.is-hidden,.session-date.is-hidden{display:none;}
-  .session-item:hover .session-time,.session-item:focus-within .session-time,.session-item.menu-open .session-time,
-  .session-item:hover .session-date,.session-item:focus-within .session-date,.session-item.menu-open .session-date{display:none;}
+  .session-time.is-hidden{display:none;}
+  .session-item:hover .session-time,.session-item:focus-within .session-time,.session-item.menu-open .session-time{display:none;}
   /* ── Session action trigger + dropdown ── */
   .session-actions{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s ease;}
   .session-item:hover .session-actions,.session-item:focus-within .session-actions,.session-item.menu-open .session-actions{opacity:1;pointer-events:auto;}

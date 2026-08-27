@@ -126,6 +126,12 @@ def test_show_only_active_toggle():
     assert "const visibleSessions=_showOnlyActiveSessions" in js
     assert "if(!_showOnlyActiveSessions&&typeof _workspaceList" in js
     assert "session-active-only-toggle" in js
+    # "Only active" filter persists across reloads until toggled back off.
+    assert "SHOW_ONLY_ACTIVE_SESSIONS_STORAGE_KEY" in js
+    assert "function _restoreShowOnlyActiveSessions()" in js
+    assert "function _setShowOnlyActiveSessions(enabled)" in js
+    assert "_restoreShowOnlyActiveSessions();" in js
+    assert "_setShowOnlyActiveSessions(!_showOnlyActiveSessions);" in js
     css = STYLE_CSS.read_text(encoding="utf-8")
     assert ".session-active-only-toggle{" in css
     assert ".session-active-only-dot{" in css
@@ -150,6 +156,18 @@ def test_workspace_groups_are_collapsible():
     assert "_groupCollapsed" not in js
     assert "hermes-date-groups-collapsed" not in js
     assert "if(_groupCollapsed[g.label]) continue;" not in js
+
+
+def test_workspace_collapse_state_persists_across_reloads():
+    js = _js()
+    # Expanded/collapsed workspace + folder state survives page reloads via
+    # localStorage (JSON-serialized Sets), restored at module load.
+    assert "WORKSPACE_COLLAPSED_STORAGE_KEY" in js
+    assert "FOLDER_COLLAPSED_STORAGE_KEY" in js
+    assert "function _restoreCollapsedState()" in js
+    assert "function _persistCollapsedState()" in js
+    assert "_restoreCollapsedState();" in js
+    assert "_persistCollapsedState();" in js
 
 
 def test_workspace_header_styles_exist():

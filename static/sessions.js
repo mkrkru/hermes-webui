@@ -3984,6 +3984,7 @@ const NO_PROJECT_FILTER = '__none__';
 let _activeWorkspaceFilter = null;  // workspace path filter (null = show all, '' = no workspace)
 let _activeProject = null;  // project_id filter (null = show all, NO_PROJECT_FILTER = unassigned only)
 const SHOW_ALL_PROFILES_STORAGE_KEY = 'hermes-show-all-profiles';
+const SHOW_ONLY_ACTIVE_SESSIONS_STORAGE_KEY = 'hermes-show-only-active-sessions';
 let _showAllProfiles = false;  // false = filter to active profile only
 let _profileSwitchOpeningExistingSession = false;  // true while cross-profile sidebar click switches profile before loadSession()
 let _otherProfileCount = 0;       // count of sessions from other profiles (server-reported)
@@ -6771,11 +6772,6 @@ function _formatSessionDate(timestampMs, nowMs) {
   return date.toLocaleDateString(undefined, options);
 }
 
-function _formatSessionTime(timestampMs) {
-  const date = new Date(timestampMs);
-  return date.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
-}
-
 function _formatRelativeSessionTime(timestampMs, nowMs) {
   if (!timestampMs) return t('session_time_unknown');
   nowMs = nowMs || _serverNowMs();
@@ -7722,10 +7718,32 @@ function _attachProjectQuickCreateButton(chip, project){
   chip.appendChild(btn);
 }
 
-// Workspace group collapse state (path -> collapsed). Non-persistent; resets to
-// expanded on reload. Lives at module scope so it survives the frequent
-// renderSessionListFromCache() repaints (stream/unread/sync updates).
+// Workspace + folder group collapse state (path -> collapsed). Persisted to
+// localStorage so the tree keeps its expanded/collapsed shape across reloads.
+// Lives at module scope so it survives the frequent renderSessionListFromCache()
+// repaints (stream/unread/sync updates).
+const WORKSPACE_COLLAPSED_STORAGE_KEY = 'hermes-sidebar-collapsed-workspaces';
+const FOLDER_COLLAPSED_STORAGE_KEY = 'hermes-sidebar-collapsed-folders';
 let _workspaceCollapsed=new Set();
+let _folderCollapsed=new Set();
+
+function _restoreCollapsedState(){
+  try{
+    const wsRaw=localStorage.getItem(WORKSPACE_COLLAPSED_STORAGE_KEY);
+    const wsArr=wsRaw?JSON.parse(wsRaw):[];
+    if(Array.isArray(wsArr)) for(const p of wsArr) if(typeof p==='string'&&p) _workspaceCollapsed.add(p);
+  }catch(_e){}
+  try{
+    const fRaw=localStorage.getItem(FOLDER_COLLAPSED_STORAGE_KEY);
+    const fArr=fRaw?JSON.parse(fRaw):[];
+    if(Array.isArray(fArr)) for(const p of fArr) if(typeof p==='string'&&p) _folderCollapsed.add(p);
+  }catch(_e){}
+}
+function _persistCollapsedState(){
+  try{ localStorage.setItem(WORKSPACE_COLLAPSED_STORAGE_KEY, JSON.stringify([..._workspaceCollapsed])); }catch(_e){}
+  try{ localStorage.setItem(FOLDER_COLLAPSED_STORAGE_KEY, JSON.stringify([..._folderCollapsed])); }catch(_e){}
+}
+_restoreCollapsedState();
 
 function _attachWorkspaceToggleAction(hdr, wsPath){
   hdr.title=(typeof t==='function'?t('workspace_toggle_chats'):'')||'Show or hide chats in this workspace';
@@ -7736,18 +7754,29 @@ function _attachWorkspaceToggleAction(hdr, wsPath){
     e.stopPropagation();
     if(_workspaceCollapsed.has(wsPath)) _workspaceCollapsed.delete(wsPath);
     else _workspaceCollapsed.add(wsPath);
+    _persistCollapsedState();
     try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
   };
 }
-
-// Folder group collapse state (parent-dir path -> collapsed). Same non-persistent
-// lifetime as _workspaceCollapsed.
-let _folderCollapsed=new Set();
 
 // "Show only active" filter: when on, the sidebar tree collapses to chats that
 // carry a status — active (open), streaming, awaiting a queued turn, unread, or
 // pending approval/clarify.
 let _showOnlyActiveSessions=false;
+
+// Persist the "Only active" filter across reloads so the tree stays filtered
+// until the user explicitly toggles it back off (mirrors _showAllProfiles).
+function _restoreShowOnlyActiveSessions(){
+  try{
+    const raw=localStorage.getItem(SHOW_ONLY_ACTIVE_SESSIONS_STORAGE_KEY);
+    _showOnlyActiveSessions = raw==='1'||raw==='true';
+  }catch(_e){ _showOnlyActiveSessions=false; }
+}
+function _setShowOnlyActiveSessions(enabled){
+  _showOnlyActiveSessions=!!enabled;
+  try{ localStorage.setItem(SHOW_ONLY_ACTIVE_SESSIONS_STORAGE_KEY,_showOnlyActiveSessions?'1':'0'); }catch(_e){}
+}
+_restoreShowOnlyActiveSessions();
 
 function _sessionHasStatus(s, activeSid){
   if(!s) return false;
@@ -7767,6 +7796,7 @@ function _attachFolderToggleAction(hdr, path){
     e.stopPropagation();
     if(_folderCollapsed.has(path)) _folderCollapsed.delete(path);
     else _folderCollapsed.add(path);
+    _persistCollapsedState();
     try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
   };
 }
@@ -7947,7 +7977,7 @@ function renderSessionListFromCache(){
     activeToggle.appendChild(dot);
     activeToggle.appendChild(lbl);
     activeToggle.onclick=()=>{
-      _showOnlyActiveSessions=!_showOnlyActiveSessions;
+      _setShowOnlyActiveSessions(!_showOnlyActiveSessions);
       try{ if(typeof renderSessionListFromCache==='function') renderSessionListFromCache(); }catch(_){}
     };
     list.appendChild(activeToggle);
@@ -8380,12 +8410,9 @@ function renderSessionListFromCache(){
     title.title=_sessionFullTitleTooltip(rawTitle,cleanTitle,s);
     const tsMs=_sessionTimestampMs(s);
     const hasAttentionState=isStreaming||hasUnread||Boolean(attention);
-    const dateSpan=document.createElement('span');
-    dateSpan.className='session-date'+(hasAttentionState?' is-hidden':'');
-    dateSpan.textContent=hasAttentionState?'':_formatSessionDate(tsMs);
     const ts=document.createElement('span');
     ts.className='session-time'+(hasAttentionState?' is-hidden':'');
-    ts.textContent=hasAttentionState?'':_formatSessionTime(tsMs);
+    ts.textContent=hasAttentionState?'':_formatRelativeSessionTime(tsMs);
     titleRow.appendChild(title);
     // Project color dot: placed BETWEEN title and timestamp, not inside the
     // title span. Inside the title span it would be clipped by the ellipsis
@@ -8467,7 +8494,6 @@ function renderSessionListFromCache(){
       chip.dataset.sourceKey=_sourceKeyForSession(s)||'cli';
       titleRow.appendChild(chip);
     }
-    titleRow.appendChild(dateSpan);
     titleRow.appendChild(ts);
     sessionText.appendChild(titleRow);
     const contentPreview=titleMatched?'':_sessionSearchContentPreview(s,searchQueryRaw);
