@@ -143,7 +143,7 @@ ARG HERMES_VERSION=unknown
 RUN echo "__version__ = '${HERMES_VERSION}'" > /apptoo/api/_version.py
 
 USER 1024
-ENV PLAYWRIGHT_BROWSERS_PATH=/home/hermeswebui/.cache/ms-playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/hermeswebui/.hermes/home/.cache/ms-playwright
 RUN playwright install chromium
 
 # Default to binding all interfaces (required for container networking)
