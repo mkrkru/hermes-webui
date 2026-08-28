@@ -104,13 +104,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8
 
+RUN pip install --no-cache-dir playwright \
+    && playwright install-deps
+
 WORKDIR /apptoo
 
 # Create the unprivileged runtime user. The entrypoint starts as root only for
 # UID/GID alignment and filesystem preparation, then execs the server as this user.
 RUN groupadd -g 1024 hermeswebui \
     && useradd -u 1024 -d /home/hermeswebui -g hermeswebui -G users -s /bin/bash -m hermeswebui \
-    && mkdir -p /app /uv_cache /workspace /code \
+    && mkdir -p /app /uv_cache /workspace /code /home/hermeswebui/.cache \
     && chown -R hermeswebui:hermeswebui /home/hermeswebui /app /uv_cache /workspace /code \
     && chmod 0755 /home/hermeswebui \
     && chmod 1777 /app /uv_cache /workspace /code
@@ -138,6 +141,10 @@ COPY --chown=root:root . /apptoo
 # Local builds that omit the arg get "unknown" as the fallback.
 ARG HERMES_VERSION=unknown
 RUN echo "__version__ = '${HERMES_VERSION}'" > /apptoo/api/_version.py
+
+USER 1024
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/hermeswebui/.cache/ms-playwright
+RUN playwright install chromium
 
 # Default to binding all interfaces (required for container networking)
 ENV HERMES_WEBUI_HOST=0.0.0.0
