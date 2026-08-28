@@ -1967,8 +1967,8 @@
   /* VS Code-style tree indentation: one level per nesting, plus vertical guide
      lines (trunk) with a horizontal elbow to each nested node. */
   .session-date-group.workspace-group>.session-date-body,.session-date-group.folder-group>.session-date-body{position:relative;padding-left:16px;}
-  .session-date-group.workspace-group>.session-date-body::before,.session-date-group.folder-group>.session-date-body::before{content:"";position:absolute;left:8px;top:0;bottom:10px;width:1px;background:var(--border);opacity:.45;}
-  .session-date-group.workspace-group>.session-date-body>.session-item::after,.session-date-group.folder-group>.session-date-body>.workspace-group>.session-date-header::after{content:"";position:absolute;left:-8px;top:50%;width:8px;height:0;border-top:1px solid var(--border);opacity:.45;}
+  .session-date-group.workspace-group>.session-date-body::before,.session-date-group.folder-group>.session-date-body::before{content:"";position:absolute;left:8px;top:0;bottom:10px;width:1px;background:var(--border);opacity:.65;}
+  .session-date-group.workspace-group>.session-date-body>.session-item::after,.session-date-group.folder-group>.session-date-body>.workspace-group>.session-date-header::after{content:"";position:absolute;left:-8px;top:50%;width:8px;height:0;border-top:1px solid var(--border);opacity:.65;}
   /* "New chat" button above each workspace's chat list */
   .session-workspace-new-chat{display:flex;align-items:center;gap:6px;width:100%;margin:0 0 2px;padding:4px 8px;border:none;border-radius:6px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer;text-align:left;transition:background .15s,color .15s;}
   .session-workspace-new-chat:hover{background:var(--hover-bg);color:var(--accent);}
