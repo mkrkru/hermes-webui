@@ -1,0 +1,54 @@
+/* Font picker (Settings → Appearance) — font-family override.
+ *
+ * Mechanism: the active choice is stored in localStorage under
+ * 'hermes-font-picker' and exposed as a data attribute
+ * (`<html data-font-picker="<key>">`) by an inline pre-paint script in
+ * index.html (mirrors the theme class / data-font-size boot scripts, so the
+ * font applies before first paint — no FOUC).
+ *
+ * Each rule below overrides the SAME custom variables the base theme and
+ * every full-palette skin use for fonts (`--font-ui`, `--font-conversation`
+ * — see the :root block at the top of static/style.css). The selectors are
+ * written as `:root[data-font-picker=...]` AND `:root.dark[data-font-picker=...]`
+ * so they beat the skin rules `:root[data-skin=...] { --font-ui: ... }`
+ * regardless of dark-mode class, and this stylesheet loads after style.css so
+ * equal-specificity ties resolve in our favor.
+ *
+ * `--font-mono` (code blocks, terminal) is intentionally NOT overridden: the
+ * picker targets the UI/prose face only.
+ *
+ * "Theme default" removes the attribute entirely, falling back to whatever
+ * the active theme/skin declares.
+ */
+
+:root[data-font-picker="system-ui"],
+:root.dark[data-font-picker="system-ui"]{--font-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="segoe-ui"],
+:root.dark[data-font-picker="segoe-ui"]{--font-ui:"Segoe UI","Segoe UI Variable Text",system-ui,sans-serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="helvetica"],
+:root.dark[data-font-picker="helvetica"]{--font-ui:"Helvetica Neue",Helvetica,Arial,sans-serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="verdana"],
+:root.dark[data-font-picker="verdana"]{--font-ui:Verdana,Geneva,"DejaVu Sans",sans-serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="trebuchet"],
+:root.dark[data-font-picker="trebuchet"]{--font-ui:"Trebuchet MS","Lucida Grande","Lucida Sans Unicode",sans-serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="georgia"],
+:root.dark[data-font-picker="georgia"]{--font-ui:Georgia,"Times New Roman",serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="times"],
+:root.dark[data-font-picker="times"]{--font-ui:"Times New Roman",Times,serif;--font-conversation:var(--font-ui);}
+:root[data-font-picker="ui-mono"],
+:root.dark[data-font-picker="ui-mono"]{--font-ui:ui-monospace,"SF Mono","Cascadia Mono","Segoe UI Mono",Menlo,Consolas,monospace;--font-conversation:var(--font-ui);}
+
+/* Picker control styling (kept local so static/style.css stays untouched). */
+#fontPicker.font-picker-select{
+  width:100%;max-width:280px;
+  padding:8px 10px;
+  border:1px solid var(--border2);
+  border-radius:10px;
+  background:var(--surface);
+  color:var(--text);
+  font-family:var(--font-ui);
+  font-size:13px;
+  cursor:pointer;
+  outline:none;
+}
+#fontPicker.font-picker-select:focus{border-color:var(--accent);}

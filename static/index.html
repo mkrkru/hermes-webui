@@ -19,6 +19,8 @@
 <link rel="apple-touch-icon" sizes="512x512" href="static/apple-touch-icon.png">
 <script>(function(){try{var _hadAppearance=localStorage.getItem('hermes-theme')!==null||localStorage.getItem('hermes-skin')!==null;var themes={light:1,dark:1,system:1},skins={codex:1,terracotta:1,indigo:1,default:1,ares:1,mono:1,graphite:1,github:1,slate:1,poseidon:1,sisyphus:1,charizard:1,sienna:1,catppuccin:1,hepburn:1,nous:1,'geist-contrast':1,neon:1,'neon-soft':1,'neon-paint':1,zeus:1,'verdigris':1},legacy={slate:['dark','slate'],solarized:['dark','poseidon'],monokai:['dark','sisyphus'],nord:['dark','slate'],oled:['dark','default']},t=(localStorage.getItem('hermes-theme')||'dark').toLowerCase(),s=(localStorage.getItem('hermes-skin')||'').toLowerCase(),m=legacy[t],theme=m?m[0]:(themes[t]?t:'dark');var pendingExt=s&&s!=='default'&&!skins[s]&&!legacy[s];var skin=skins[s]?s:(pendingExt?s:(m?m[1]:'default'));if(_hadAppearance){localStorage.setItem('hermes-theme',theme);localStorage.setItem('hermes-skin',skin);}if(theme==='system')theme=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';if(theme==='dark')document.documentElement.classList.add('dark');if(skin!=='default')document.documentElement.dataset.skin=skin;}catch(e){document.documentElement.classList.add('dark');}})()</script>
 <script>(function(){try{var fs=localStorage.getItem('hermes-font-size');if(fs&&fs!=='default')document.documentElement.dataset.fontSize=fs;}catch(e){}})()</script>
+<!-- Font picker pre-paint script: mirrors the theme/data-font-size boot scripts above. Reads 'hermes-font-picker' (allowlist-validated) and sets <html data-font-picker="..."> so the override rules in font-picker.css apply before first paint — no FOUC. Font stacks live ONLY in font-picker.css. -->
+<script>(function(){try{var fonts={'system-ui':1,'segoe-ui':1,'helvetica':1,'verdana':1,'trebuchet':1,'georgia':1,'times':1,'ui-mono':1};var f=localStorage.getItem('hermes-font-picker');if(f&&fonts[f])document.documentElement.dataset.fontPicker=f;}catch(e){}})()</script>
 <!-- theme-color: surfaces the active app chrome color to native status bars (Safari status bar, PWA, native WKWebView wrappers). Updated dynamically by boot.js when theme/skin changes. The light/dark default values match style.css :root --sidebar / :root.dark --sidebar. -->
 <meta name="theme-color" content="#FAF7F0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141425" media="(prefers-color-scheme: dark)">
@@ -71,6 +73,7 @@
   }
 })()</script>
 <link rel="stylesheet" href="static/style.css?v=__WEBUI_VERSION__">
+<link rel="stylesheet" href="static/font-picker.css?v=__WEBUI_VERSION__">
   <link rel="stylesheet" href="static/mcp-panel.css?v=__WEBUI_VERSION__">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" integrity="sha384-LJcOxlx9IMbNXDqJ2axpfEQKkAYbFjJfhXexLfiRJhjDU81mzgkiQq8rkV0j6dVh" crossorigin="anonymous">
   <!-- KaTeX math rendering CSS (loaded eagerly from vendored assets to prevent font CSP noise) -->
@@ -1054,6 +1057,20 @@
               <input type="hidden" id="settingsTheme" value="dark">
             </div>
             <div class="settings-field">
+              <label data-i18n="settings_label_font_family">Font</label>
+              <select id="fontPicker" class="font-picker-select" aria-label="Font">
+                <option value="default" data-i18n="font_family_theme_default">Theme default</option>
+                <option value="system-ui" style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">System UI</option>
+                <option value="segoe-ui" style="font-family:'Segoe UI',system-ui,sans-serif">Segoe UI</option>
+                <option value="helvetica" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">Helvetica / Arial</option>
+                <option value="verdana" style="font-family:Verdana,Geneva,sans-serif">Verdana</option>
+                <option value="trebuchet" style="font-family:'Trebuchet MS','Lucida Grande',sans-serif">Trebuchet MS</option>
+                <option value="georgia" style="font-family:Georgia,'Times New Roman',serif">Georgia</option>
+                <option value="times" style="font-family:'Times New Roman',Times,serif">Times New Roman</option>
+                <option value="ui-mono" style="font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">Monospace</option>
+              </select>
+            </div>
+            <div class="settings-field">
               <label data-i18n="settings_label_skin">Skin</label>
               <div id="skinPickerGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4px">
               </div>
@@ -1863,6 +1880,7 @@
 <script src="static/panels.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/onboarding.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/boot.js?v=__WEBUI_VERSION__" defer></script>
+<script src="static/font-picker.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/outline.js?v=__WEBUI_VERSION__" defer></script>
 
 <!-- Kanban: create/rename board modal — used for both flows. -->
