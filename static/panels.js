@@ -42,9 +42,9 @@ let _logsSeverityFilter = 'all';
 const APP_TITLEBAR_KEYS = {
   chat: 'tab_chat', tasks: 'tab_tasks', skills: 'tab_skills',
   memory: 'tab_memory', workspaces: 'tab_workspaces',
-  profiles: 'tab_profiles', todos: 'tab_todos', insights: 'tab_insights', logs: 'tab_logs', activity: 'tab_activity', settings: 'tab_settings',
+  profiles: 'tab_profiles', todos: 'tab_todos', insights: 'tab_insights', logs: 'tab_logs', activity: 'tab_activity', mcp: 'tab_mcp', settings: 'tab_settings',
 };
-const MAIN_VIEW_PANELS = ['settings','skills','memory','tasks','kanban','workspaces','profiles','insights','logs','activity','plugin'];
+const MAIN_VIEW_PANELS = ['settings','skills','memory','tasks','kanban','workspaces','profiles','insights','logs','activity','mcp','plugin'];
 const MAIN_VIEW_SIDEBAR_PANEL_FALLBACKS = { plugin: 'settings' };
 
 /**
@@ -462,6 +462,7 @@ async function switchPanel(name, opts = {}) {
   if (nextPanel === 'todos') loadTodos();
   if (nextPanel === 'insights') await loadInsights();
   if (nextPanel === 'logs') await loadLogs();
+  if (nextPanel === 'mcp' && typeof loadMcpPanel === 'function') await loadMcpPanel();
   if (nextPanel === 'activity') {
     // Activity is a full-screen monitor: drop the chat-scoped workspace panel
     // so it doesn't linger alongside the running-chats grid.
@@ -7519,7 +7520,7 @@ let _settingsPreferencesAutosaveTimer = null;
 let _settingsPreferencesAutosaveRetryPayload = null;
 
 // ── Sidebar tab visibility/order ────────────────────────────────────────────
-const _ALWAYS_VISIBLE_TABS = new Set(['chat','settings']);
+const _ALWAYS_VISIBLE_TABS = new Set(['chat','settings','mcp']);
 const _HIDDEN_TABS_LS_KEY = 'hermes-webui-hidden-tabs';
 const _TAB_ORDER_LS_KEY = 'hermes-webui-tab-order';
 const _COMPOSER_CONTROL_ORDER_LS_KEY = 'hermes-webui-composer-control-order';
