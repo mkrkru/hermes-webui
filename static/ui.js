@@ -18181,8 +18181,15 @@ function renderMessages(options){
   const _keepOpenArmed=(typeof _isKeepSettledWorklogOpenArmed==='function')&&_isKeepSettledWorklogOpenArmed();
   if(sid&&!INFLIGHT[sid]&&!hasTransientTranscriptUi&&!_keepOpenArmed){
     const _html=inner.innerHTML;
-    // Only cache sessions with <300KB rendered HTML; evict oldest beyond 8 sessions.
-    if(_html.length<300_000){
+    // Cache up to 2MB of rendered HTML per session; evict oldest beyond 8 sessions
+    // (worst case 8×2MB ≈ 32MB of transient strings, far less in practice). The
+    // previous 300KB ceiling silently excluded any chat with rich tool cards /
+    // diffs (a 65-message transcript with 35 tool cards renders ~490KB), so every
+    // switch back to those chats paid a full DOM rebuild + forced-layout scroll
+    // write — the primary source of chat-switch jank. The rebuild-vs-restore
+    // tradeoff still holds: restoring 2MB of HTML is markedly cheaper than
+    // rebuilding it row by row.
+    if(_html.length<2_000_000){
       const renderSignature=cachedRenderSignature===null?_messageRenderCacheSignature():cachedRenderSignature;
       _sessionHtmlCache.set(sid,{html:_html,msgCount,renderWindowKey,signature:renderSignature});
       if(_sessionHtmlCache.size>8){_sessionHtmlCache.delete(_sessionHtmlCache.keys().next().value);}
