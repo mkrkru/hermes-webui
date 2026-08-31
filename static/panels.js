@@ -8710,6 +8710,8 @@ function _preferencesPayloadFromUi(){
   if(terminalAutoExpandCb) payload.terminal_auto_expand_on_output=terminalAutoExpandCb.checked;
   const workspaceTodosTabCb=$('settingsWorkspaceTodosTab');
   if(workspaceTodosTabCb) payload.workspace_todos_tab=workspaceTodosTabCb.checked;
+  const workspaceTerminalTabCb=$('settingsWorkspaceTerminalTab');
+  if(workspaceTerminalTabCb) payload.workspace_terminal_tab=workspaceTerminalTabCb.checked;
   const apiRedactCb=$('settingsApiRedact');
   if(apiRedactCb) payload.api_redact_enabled=apiRedactCb.checked;
   const showCliCb=$('settingsShowCliSessions');
@@ -8850,6 +8852,10 @@ function _applyWorkspaceTodosTabVisibility(){
   if(!window._workspaceTodosTab && rp && rp.dataset.activeTab==='todos'){
     if(typeof switchWorkspacePanelTab==='function') switchWorkspacePanelTab('files');
   }
+}
+
+function _applyWorkspaceTerminalTabVisibilityUi(){
+  if(typeof _applyWorkspaceTerminalTabVisibility==='function') _applyWorkspaceTerminalTabVisibility();
 }
 
 function _schedulePreferencesAutosave(){
@@ -9417,6 +9423,17 @@ async function loadSettingsPanel(){
       workspaceTodosTabCb.addEventListener('change',()=>{
         window._workspaceTodosTab=workspaceTodosTabCb.checked;
         _applyWorkspaceTodosTabVisibility();
+        _schedulePreferencesAutosave();
+      },{once:false});
+    }
+    const workspaceTerminalTabCb=$('settingsWorkspaceTerminalTab');
+    if(workspaceTerminalTabCb){
+      workspaceTerminalTabCb.checked=!!settings.workspace_terminal_tab;
+      window._workspaceTerminalTab=workspaceTerminalTabCb.checked;
+      _applyWorkspaceTerminalTabVisibilityUi();
+      workspaceTerminalTabCb.addEventListener('change',()=>{
+        window._workspaceTerminalTab=workspaceTerminalTabCb.checked;
+        _applyWorkspaceTerminalTabVisibilityUi();
         _schedulePreferencesAutosave();
       },{once:false});
     }
@@ -12067,6 +12084,8 @@ function _applySavedSettingsUi(saved, body, opts){
   window._terminalAutoExpandOnOutput=!!body.terminal_auto_expand_on_output;
   window._workspaceTodosTab=!!body.workspace_todos_tab;
   if(typeof _applyWorkspaceTodosTabVisibility==='function') _applyWorkspaceTodosTabVisibility();
+  window._workspaceTerminalTab=!!body.workspace_terminal_tab;
+  if(typeof _applyWorkspaceTerminalTabVisibility==='function') _applyWorkspaceTerminalTabVisibility();
   window._sessionJumpButtonsEnabled=!!body.session_jump_buttons;
   if(typeof _applySessionNavigationPrefs==='function') _applySessionNavigationPrefs();
   window._sidebarDensity=sidebarDensity==='detailed'?'detailed':'compact';
@@ -12746,6 +12765,7 @@ async function saveSettings(andClose){
   body.fade_text_effect=fadeTextEffect;
   body.terminal_auto_expand_on_output=!!($('settingsTerminalAutoExpand')||{}).checked;
   body.workspace_todos_tab=!!window._workspaceTodosTab;
+  body.workspace_terminal_tab=!!window._workspaceTerminalTab;
   body.api_redact_enabled=!!($('settingsApiRedact')||{}).checked;
   body.show_cli_sessions=showCliSessions;
   // Persist the opt-out child independently; the read path applies the parent gate.

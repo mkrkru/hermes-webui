@@ -370,11 +370,12 @@ if(typeof document !== 'undefined'){
 }
 
 function switchWorkspacePanelTab(tab){
-  _workspacePanelActiveTab = tab === 'artifacts' ? 'artifacts' : tab === 'todos' ? 'todos' : 'files';
+  _workspacePanelActiveTab = tab === 'artifacts' ? 'artifacts' : tab === 'todos' ? 'todos' : tab === 'terminal' ? 'terminal' : 'files';
   _setWorkspacePanelTabDataset();
   const filesTab = $('workspaceFilesTab');
   const artifactsTab = $('workspaceArtifactsTab');
   const todosTab = $('workspaceTodosTab');
+  const terminalTab = $('workspaceTerminalTab');
   if(filesTab){
     filesTab.classList.toggle('active', _workspacePanelActiveTab === 'files');
     filesTab.setAttribute('aria-selected', _workspacePanelActiveTab === 'files' ? 'true' : 'false');
@@ -387,12 +388,94 @@ function switchWorkspacePanelTab(tab){
     todosTab.classList.toggle('active', _workspacePanelActiveTab === 'todos');
     todosTab.setAttribute('aria-selected', _workspacePanelActiveTab === 'todos' ? 'true' : 'false');
   }
+  if(terminalTab){
+    terminalTab.classList.toggle('active', _workspacePanelActiveTab === 'terminal');
+    terminalTab.setAttribute('aria-selected', _workspacePanelActiveTab === 'terminal' ? 'true' : 'false');
+  }
   const artifacts = $('workspaceArtifacts');
   if(artifacts) artifacts.hidden = _workspacePanelActiveTab !== 'artifacts';
   const todosPanel = $('workspaceTodosPanel');
   if(todosPanel) todosPanel.hidden = _workspacePanelActiveTab !== 'todos';
+  const terminalPanel = $('workspaceTerminalHost');
+  if(terminalPanel) terminalPanel.hidden = _workspacePanelActiveTab !== 'terminal';
   if(_workspacePanelActiveTab === 'artifacts') renderSessionArtifacts();
   if(_workspacePanelActiveTab === 'todos') _loadWorkspacePanelTodos();
+  if(_workspacePanelActiveTab === 'terminal'){
+    _loadWorkspacePanelTerminal();
+  }else{
+    _unmountWorkspacePanelTerminal();
+  }
+}
+
+// Workspace Terminal tab: the right panel HOSTS the same composer terminal
+// node (one xterm instance + one PTY per WebUI session — no second terminal).
+// Mounting moves the #composerTerminalPanel DOM node into the tab host;
+// unmounting returns it to its original composer parent. While hosted,
+// TERMINAL_UI.hosted (terminal.js) suppresses the transcript-space sync so the
+// chat does not reserve space for a terminal that lives in the side panel.
+let _workspaceTerminalHostParent = null;
+
+function _workspaceTerminalIsHosted(){
+  const panel = $('composerTerminalPanel');
+  const host = $('workspaceTerminalHost');
+  return !!(panel && host && panel.parentNode === host);
+}
+
+function _mountWorkspacePanelTerminal(){
+  const panel = $('composerTerminalPanel');
+  const host = $('workspaceTerminalHost');
+  if(!panel || !host || panel.parentNode === host) return;
+  if(!panel.isConnected) return;
+  _workspaceTerminalHostParent = panel.parentNode;
+  host.appendChild(panel);
+  panel.classList.add('in-workspace-host');
+  if(typeof TERMINAL_UI !== 'undefined') TERMINAL_UI.hosted = true;
+  if(TERMINAL_UI && TERMINAL_UI.open && typeof _fitTerminal === 'function') _fitTerminal();
+}
+
+function _unmountWorkspacePanelTerminal(){
+  const panel = $('composerTerminalPanel');
+  if(!panel || !_workspaceTerminalIsHosted()) return;
+  const parent = _workspaceTerminalHostParent;
+  _workspaceTerminalHostParent = null;
+  panel.classList.remove('in-workspace-host');
+  if(typeof TERMINAL_UI !== 'undefined') TERMINAL_UI.hosted = false;
+  if(parent && parent.isConnected){
+    parent.appendChild(panel);
+    if(typeof TERMINAL_UI !== 'undefined' && TERMINAL_UI.open && typeof _syncTerminalTranscriptSpace === 'function'){
+      _syncTerminalTranscriptSpace(true,{immediate:true});
+    }
+  }
+}
+
+// Called from terminal.js before the terminal is shown in the composer and
+// after it is closed: if the workspace panel is NOT on the Terminal tab, make
+// sure the panel node lives in the composer, not in the (possibly hidden)
+// tab host — otherwise a composer-side open/close would target an invisible
+// node inside the right panel.
+function _syncWorkspaceTerminalHostLocation(){
+  if(_workspacePanelActiveTab !== 'terminal') _unmountWorkspacePanelTerminal();
+}
+
+function _loadWorkspacePanelTerminal(){
+  _mountWorkspacePanelTerminal();
+  if(typeof TERMINAL_UI !== 'undefined' && !TERMINAL_UI.open && typeof toggleComposerTerminal === 'function'){
+    toggleComposerTerminal(true);
+  }else if(typeof TERMINAL_UI !== 'undefined' && TERMINAL_UI.open && typeof _fitTerminal === 'function'){
+    _fitTerminal();
+  }
+}
+
+function _applyWorkspaceTerminalTabVisibility(){
+  const tab=$('workspaceTerminalTab');
+  if(tab) tab.hidden=!window._workspaceTerminalTab;
+  if(!window._workspaceTerminalTab){
+    _unmountWorkspacePanelTerminal();
+    const rp=document.querySelector('.rightpanel');
+    if(rp && rp.dataset.activeTab==='terminal'){
+      if(typeof switchWorkspacePanelTab==='function') switchWorkspacePanelTab('files');
+    }
+  }
 }
 
 function _loadWorkspacePanelTodos(){

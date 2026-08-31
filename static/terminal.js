@@ -1,6 +1,7 @@
 const TERMINAL_UI={
   open:false,
   collapsed:false,
+  hosted:false,
   sessionId:null,
   workspace:null,
   source:null,
@@ -363,6 +364,11 @@ function _terminalIsMessagesNearBottom(el){
 
 function _syncTerminalTranscriptSpace(open,opts){
   opts=opts||{};
+  // While the terminal panel is hosted inside the workspace-panel Terminal tab
+  // it no longer overlays the composer, so the chat transcript must not
+  // reserve space for it. Cleanup (open=false) still runs to strip stale
+  // classes if the panel was hosted mid-session.
+  if(open&&TERMINAL_UI.hosted)return;
   const messages=_terminalMessagesEl();
   if(!messages)return;
   const wasNearBottom=_terminalIsMessagesNearBottom(messages);
@@ -587,6 +593,9 @@ async function toggleComposerTerminal(force){
     const messages=_terminalMessagesEl();
     if(!panel)return;
     clearTimeout(TERMINAL_UI.closeTimer);
+    // If the workspace panel is not showing the Terminal tab, make sure the
+    // panel node is back in the composer before opening it there.
+    if(typeof _syncWorkspaceTerminalHostLocation==='function')_syncWorkspaceTerminalHostLocation();
     _initTerminalResizeHandle();
     _resetTerminalHeightForViewport();
     if(messages)messages.classList.add('terminal-expanding-from-dock');
@@ -681,6 +690,7 @@ async function closeComposerTerminal(sessionId,opts){
   }
   const {panel}= _terminalEls();
   if(panel){
+    if(typeof _syncWorkspaceTerminalHostLocation==='function')_syncWorkspaceTerminalHostLocation();
     panel.classList.remove('is-open','is-collapsed','is-expanding-from-dock');
     _syncTerminalTranscriptSpace(false);
     clearTimeout(TERMINAL_UI.closeTimer);

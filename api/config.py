@@ -9711,6 +9711,7 @@ _SETTINGS_DEFAULTS = {
     "simplified_tool_calling": True,  # legacy compatibility; Worklog renderer remains enabled
     "terminal_auto_expand_on_output": False,  # auto-expand terminal panel when output arrives while collapsed
     "workspace_todos_tab": False,  # show a Todos tab in the workspace panel (right side)
+    "workspace_terminal_tab": False,  # show a Terminal tab in the workspace panel (right side)
     "api_redact_enabled": True,  # redact sensitive data (API keys, secrets) from API responses
     "dashboard_plugins": {},  # plugin_name -> bool, opt-in per plugin (default off per PF-10b)
     "sidebar_density": "compact",  # compact | detailed
@@ -10007,6 +10008,7 @@ _SETTINGS_BOOL_KEYS = {
     "show_thinking",
     "terminal_auto_expand_on_output",
     "workspace_todos_tab",
+    "workspace_terminal_tab",
     "api_redact_enabled",
     "session_jump_buttons",
     "render_user_markdown",

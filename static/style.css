@@ -6670,6 +6670,19 @@ main.main > .main-view:not([id="mainChat"]):not([id="mainSettings"]) .main-view-
 .rightpanel[data-active-tab="files"] .workspace-artifacts{display:none!important;}
 .rightpanel[data-active-tab="todos"] .breadcrumb-bar,.rightpanel[data-active-tab="todos"] .file-tree,.rightpanel[data-active-tab="todos"] #wsEmptyState,.rightpanel[data-active-tab="todos"] .workspace-artifacts{display:none!important;}
 .rightpanel:not([data-active-tab="todos"]) .workspace-todos{display:none!important;}
+.workspace-terminal{flex:1;display:flex;flex-direction:column;min-height:0;}
+.rightpanel:not([data-active-tab="terminal"]) .workspace-terminal{display:none!important;}
+.rightpanel[data-active-tab="terminal"] .breadcrumb-bar,.rightpanel[data-active-tab="terminal"] .file-tree,.rightpanel[data-active-tab="terminal"] #wsEmptyState,.rightpanel[data-active-tab="terminal"] .workspace-artifacts,.rightpanel[data-active-tab="terminal"] .workspace-todos{display:none!important;}
+/* Hosted mode: the composer terminal panel node moves into .workspace-terminal
+   and becomes a plain full-height column child (no overlay positioning). */
+.workspace-terminal .composer-terminal-panel{position:static;display:flex;flex-direction:column;flex:1;min-height:0;width:100%;overflow:visible;pointer-events:auto;transform:none;opacity:1;}
+.workspace-terminal .composer-terminal-inner{position:static;flex:1;min-height:0;height:auto;max-height:none;padding-bottom:0;transform:none;opacity:1;transition:none;border:none;border-radius:0;box-shadow:none;background:transparent;}
+/* Collapse (dock mode) and height resize are composer-overlay features; the
+   hosted panel is a full-height tab pane instead. */
+.workspace-terminal .composer-terminal-panel.is-collapsed .composer-terminal-inner{position:static;opacity:1;transform:none;}
+.workspace-terminal .composer-terminal-resize-handle,.workspace-terminal #btnTerminalCollapse{display:none!important;}
+.workspace-terminal .composer-terminal-viewport{padding:8px 10px;}
+.workspace-terminal .composer-terminal-dock{display:none!important;}
 .cron-run-usage-strip{display:inline-flex;align-items:center;gap:4px;margin-left:8px;color:var(--text-secondary);font-size:11px;opacity:.72;white-space:nowrap;}
 .cron-run-usage-footer{display:flex;margin:8px 0 0 0;padding-top:8px;border-top:1px solid var(--border-subtle);}
 .cron-item.active,.ws-row.active,.profile-card.active{background:var(--accent-bg);}
