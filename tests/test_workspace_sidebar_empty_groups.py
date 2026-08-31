@@ -141,6 +141,9 @@ def test_workspace_new_chat_button_defers_session_creation():
     js = _js()
     assert "function _newChatInWorkspace(wsPath)" in js
     assert "S._profileSwitchWorkspace=wsPath||null;" in js
+    # New chat from a workspace tree card must also make that workspace ACTIVE:
+    # the empty composer renders S._profileDefaultWorkspace as the current chip.
+    assert "if(wsPath) S._profileDefaultWorkspace=wsPath;" in js
     assert "S.session=null; S.messages=[];" in js
     assert "function _attachWorkspaceNewChatAction(btn, wsPath)" in js
     assert "_attachWorkspaceNewChatAction(newChat,g.path)" in js

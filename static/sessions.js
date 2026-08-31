@@ -7819,6 +7819,10 @@ function _workspaceParentLeaf(parentDir){
 // sidebar does not gain an empty "Untitled" card until the user actually sends.
 function _newChatInWorkspace(wsPath){
   S._profileSwitchWorkspace=wsPath||null;
+  // Make the target workspace ACTIVE for the empty composer too: with no session,
+  // syncWorkspaceDisplays() renders S._profileDefaultWorkspace as the current
+  // workspace chip, so the New Chat target must become the visible default.
+  if(wsPath) S._profileDefaultWorkspace=wsPath;
   S.session=null; S.messages=[]; S.entries=[];
   S.busy=false; S.activeStreamId=null; S.toolCalls=[];
   if(typeof _hydrateTodosFromSession==='function') _hydrateTodosFromSession(null);
